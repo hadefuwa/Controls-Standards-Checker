@@ -11,11 +11,17 @@
     <header class="header">
         <div class="header-content">
             <div class="logo">
-                <h1>🏭 Industrial AI Assistant</h1>
-                <p>Expert knowledge from EU Machinery Directive</p>
+                <div class="logo-icon">
+                    <div class="icon-industrial"></div>
+                </div>
+                <div class="logo-text">
+                    <h1>Industrial AI Assistant</h1>
+                    <p>EU Machinery Directive Compliance System</p>
+                </div>
             </div>
             <div class="status" id="status">
                 <div class="status-indicator" id="statusIndicator"></div>
+                <span class="status-label">System Status:</span>
                 <span id="statusText">Ready</span>
             </div>
         </div>
@@ -28,19 +34,49 @@
             <div class="chat-messages" id="chatMessages">
                 <!-- Welcome Message -->
                 <div class="message assistant-message">
-                    <div class="message-avatar">🤖</div>
+                    <div class="message-avatar">
+                        <div class="avatar-ai"></div>
+                    </div>
                     <div class="message-content">
                         <div class="message-text">
-                            <strong>Welcome to your Industrial Automation AI Assistant!</strong><br><br>
-                            I can help you with questions about:
-                            <ul>
-                                <li>🔒 Machinery safety requirements</li>
-                                <li>📋 CE marking and compliance</li>
-                                <li>⚠️ Risk assessment procedures</li>
-                                <li>🛑 Emergency stop requirements</li>
-                                <li>📖 EU Machinery Directive 2006/42/EC</li>
-                            </ul>
-                            Ask me anything about industrial automation!
+                            <div class="welcome-header">
+                                <h3>Industrial Automation Compliance Assistant</h3>
+                                <p>Technical expertise for machinery safety and regulatory compliance</p>
+                            </div>
+                            
+                            <div class="capabilities">
+                                <h4>Technical Capabilities:</h4>
+                                <div class="capability-grid">
+                                    <div class="capability-item">
+                                        <div class="cap-icon safety"></div>
+                                        <span>Machinery Safety Requirements</span>
+                                    </div>
+                                    <div class="capability-item">
+                                        <div class="cap-icon compliance"></div>
+                                        <span>CE Marking & Compliance</span>
+                                    </div>
+                                    <div class="capability-item">
+                                        <div class="cap-icon risk"></div>
+                                        <span>Risk Assessment Procedures</span>
+                                    </div>
+                                    <div class="capability-item">
+                                        <div class="cap-icon emergency"></div>
+                                        <span>Emergency Stop Systems</span>
+                                    </div>
+                                    <div class="capability-item">
+                                        <div class="cap-icon directive"></div>
+                                        <span>EU Machinery Directive 2006/42/EC</span>
+                                    </div>
+                                    <div class="capability-item">
+                                        <div class="cap-icon standards"></div>
+                                        <span>Industrial Automation Standards</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="cta">
+                                <p>Enter your technical query below for expert guidance on industrial automation compliance.</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -49,32 +85,44 @@
             <!-- Input Area -->
             <div class="input-area">
                 <div class="input-container">
-                    <textarea 
-                        id="questionInput" 
-                        placeholder="Ask about machinery safety, CE marking, compliance requirements..."
-                        rows="3"
-                    ></textarea>
-                    <button id="sendButton" class="send-button">
-                        <span id="sendButtonText">Send</span>
-                        <div id="sendButtonSpinner" class="spinner hidden"></div>
-                    </button>
+                    <div class="textarea-wrapper">
+                        <textarea 
+                            id="questionInput" 
+                            placeholder="Enter your technical question regarding machinery safety, compliance, or regulatory requirements..."
+                            rows="1"
+                        ></textarea>
+                        <div class="input-actions">
+                            <button id="sendButton" class="send-button">
+                                <span id="sendButtonText">
+                                    <div class="send-icon"></div>
+                                </span>
+                                <div id="sendButtonSpinner" class="spinner hidden">
+                                    <div class="spinner-icon"></div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Quick Questions -->
                 <div class="quick-questions">
-                    <p>Quick questions:</p>
+                    <h4>Common Technical Queries</h4>
                     <div class="quick-buttons">
                         <button class="quick-btn" data-question="What are the essential health and safety requirements for machinery?">
-                            Safety Requirements
+                            <div class="quick-icon safety"></div>
+                            <span>Safety Requirements</span>
                         </button>
                         <button class="quick-btn" data-question="How should CE marking be applied to industrial equipment?">
-                            CE Marking
+                            <div class="quick-icon compliance"></div>
+                            <span>CE Marking</span>
                         </button>
                         <button class="quick-btn" data-question="What are the emergency stop requirements?">
-                            Emergency Stop
+                            <div class="quick-icon emergency"></div>
+                            <span>Emergency Stop</span>
                         </button>
                         <button class="quick-btn" data-question="How should risk assessment be conducted for machinery?">
-                            Risk Assessment
+                            <div class="quick-icon risk"></div>
+                            <span>Risk Assessment</span>
                         </button>
                     </div>
                 </div>

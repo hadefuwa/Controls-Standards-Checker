@@ -16,8 +16,14 @@ function createWindow() {
       contextIsolation: true,
       // Path to the preload script
       preload: path.join(__dirname, 'preload.js')
-    }
+    },
+    // Remove the menu bar for a cleaner professional look
+    autoHideMenuBar: true,
+    menuBarVisible: false
   });
+
+  // Remove the menu bar completely
+  mainWindow.setMenuBarVisibility(false);
 
   // Load the HTML file
   mainWindow.loadFile('renderer/index.html');

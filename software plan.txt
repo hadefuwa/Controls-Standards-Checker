@@ -1,47 +1,38 @@
 Project Plan: Offline Technical Assistant for Industrial Automation
 1.0 Introduction
-
-This document outlines the project plan for the development of a standalone desktop application designed to function as an Industrial Automation AI Assistant. The primary objective is to provide precise answers to technical questions by leveraging locally stored text documentation. This application will operate entirely offline, relying on embedded text files and a locally hosted language model, eliminating the need for internet access or external paid API services at runtime.
-
+This document outlines the project plan for the development of a standalone desktop application designed to function as an Industrial Automation AI Assistant. The primary objective is to provide precise answers to technical questions by leveraging locally stored documentation. This application will operate entirely offline, relying on embedded PDF standards and a locally hosted language model, eliminating the need for internet access or external paid API services at runtime.
 2.0 Technical Specification
-
 The project will utilize a robust technology stack to achieve its objectives:
-
-Desktop Application Framework: Electron.js will be used to create the cross-platform desktop interface, ensuring compatibility across various operating systems.
-Backend Runtime: Node.js will handle all backend operations, including document parsing, embedding generation, semantic search, and interaction with the local language model.
-Document Parsing: Locally stored text files (e.g., .txt, .md) will be read directly to extract text content. This removes the need for a dedicated PDF parsing library, simplifying the data ingestion process. This content will then be chunked into sections of approximately 300 words to optimize subsequent semantic search performance.
-Embedding Generation: Embeddings will be generated using a locally run instance of sentence-transformers, specifically the all-MiniLM-L6-v2 model. This model is chosen for its efficiency and effectiveness in generating high-quality semantic representations suitable for technical text.
-Vector Database: The generated embeddings will be indexed using either FAISS or ChromaDB. This choice enables fast similarity searches to retrieve relevant document content. The indexed data and original text chunks will be stored locally in a dedicated data directory within the application package.
-Local Language Model: A local language model, initially Phi-3, will be executed using Ollama. The system architecture supports seamless substitution with larger models such as Mistral 7B Instruct or LLaMA 3 8B Instruct if improved performance is desired. This modular design ensures both scalability and maintainability while preserving system independence and cost efficiency.
+* Desktop Application Framework: Electron.js will be used to create the cross-platform desktop interface, ensuring compatibility across various operating systems.
+* Backend Runtime: Node.js will handle all backend operations, including document parsing, embedding generation, semantic search, and interaction with the local language model.
+* Document Parsing: PDF documents (e.g., IEC 60204-1, UL 508A) will be parsed using the pdf-parse library to accurately extract text content. This content will then be chunked into sections of approximately 300 words to optimize subsequent semantic search performance.
+* Embedding Generation: Embeddings will be generated using a locally run instance of sentence-transformers, specifically the all-MiniLM-L6-v2 model. This model is chosen for its efficiency and effectiveness in generating high-quality semantic representations suitable for technical text.
+* Vector Database: The generated embeddings will be indexed using either FAISS or ChromaDB. This choice enables fast similarity searches to retrieve relevant document content. The indexed data and original text chunks will be stored locally in a dedicated data directory within the application package.
+* Local Language Model: A local language model, initially Phi-3, will be executed using Ollama. The system architecture supports seamless substitution with larger models such as Mistral 7B Instruct or LLaMA 3 8B Instruct if improved performance is desired. This modular design ensures both scalability and maintainability while preserving system independence and cost efficiency.
 3.0 System Architecture
-
 The application's architecture will be structured to promote modularity and clarity:
-
-A main.js file will serve as the central control script for the Electron application.
-The renderer/ directory will contain all user interface components, including HTML, CSS, and client-side JavaScript.
-A backend/ module will encapsulate core functionalities such as document processing, the RAG pipeline, and interactions with the local vector database and LLM. This module will manage the dedicated data directory for embedded content.
-The llm/ module will act as the specific interface for communication with the Ollama inference engine.
-Standard project configuration and dependency management will be handled by package.json.
+* A main.js file will serve as the central control script for the Electron application.
+* The renderer/ directory will contain all user interface components, including HTML, CSS, and client-side JavaScript.
+* A backend/ module will encapsulate core functionalities such as document processing, the RAG pipeline, and interactions with the local vector database and LLM. This module will manage the dedicated data directory for embedded content.
+* The llm/ module will act as the specific interface for communication with the Ollama inference engine.
+* Standard project configuration and dependency management will be handled by package.json.
 4.0 Development Phases
-
 The project development will proceed through the following key phases:
-
-Document Pre-processing: Text content will be read directly from source text files. This content will be chunked into approximately 300-word segments, and embeddings will be generated for each segment using the all-MiniLM-L6-v2 sentence-transformers model.
-Vector Database Construction: The generated embeddings, along with their corresponding text chunks, will be indexed and persistently stored in the selected local vector database (FAISS or ChromaDB) within a dedicated application data directory.
-Local Language Model Setup: Ollama will be integrated to manage and serve the local language model. The initial model, Phi-3, will be prepared for runtime inference.
-Application Development: The core desktop application will be built, incorporating the user interface and the RAG pipeline. This phase includes the following critical steps for query processing:
-The user's question will be embedded using the same all-MiniLM-L6-v2 model used for the documents.
-A vector similarity search will be performed against the local database to retrieve the most relevant document chunks.
-A comprehensive prompt will be constructed, combining the retrieved chunks with the userâ€™s original question.
-This constructed prompt will then be forwarded to the locally hosted language model for response generation.
-The modelâ€™s response will be displayed within the user interface.
-Application Packaging: The complete application, including all code, libraries, and the local vector database, will be bundled into a distributable installer using Electron Builder.
+* Document Pre-processing: Text content will be extracted from source PDFs using pdf-parse. This content will be chunked into approximately 300-word segments, and embeddings will be generated for each segment using the all-MiniLM-L6-v2 sentence-transformers model.
+* Vector Database Construction: The generated embeddings, along with their corresponding text chunks, will be indexed and persistently stored in the selected local vector database (FAISS or ChromaDB) within a dedicated application data directory.
+* Local Language Model Setup: Ollama will be integrated to manage and serve the local language model. The initial model, Phi-3, will be prepared for runtime inference.
+* Application Development: The core desktop application will be built, incorporating the user interface and the RAG pipeline. This phase includes the following critical steps for query processing: 
+o The user's question will be embedded using the same all-MiniLM-L6-v2 model used for the documents.
+o A vector similarity search will be performed against the local database to retrieve the most relevant document chunks.
+o A comprehensive prompt will be constructed, combining the retrieved chunks with the user’s original question.
+o This constructed prompt will then be forwarded to the locally hosted language model for response generation.
+o The model’s response will be displayed within the user interface.
+* Application Packaging: The complete application, including all code, libraries, and the local vector database, will be bundled into a distributable installer using Electron Builder.
 5.0 Project Deliverables and Key Features
-
 The final application will deliver the following core functionalities:
+* Offline Operation: The assistant will perform all functions without requiring an internet connection.
+* Data Privacy: All document processing and AI inference will occur locally on the user's machine, ensuring sensitive information remains private.
+* Grounded Responses: Answers provided by the AI will be strictly derived from the embedded PDF documentation, preventing external information or "hallucinations."
+* Cost Efficiency: There will be no ongoing expenditures for cloud-based AI services or APIs.
+* Modularity and Scalability: The architecture facilitates seamless substitution of the local language model, allowing for future performance enhancements without significant refactoring.
 
-Offline Operation: The assistant will perform all functions without requiring an internet connection.
-Data Privacy: All document processing and AI inference will occur locally on the user's machine, ensuring sensitive information remains private.
-Grounded Responses: Answers provided by the AI will be strictly derived from the embedded text documentation, preventing external information or "hallucinations."
-Cost Efficiency: There will be no ongoing expenditures for cloud-based AI services or APIs.
-Modularity and Scalability: The architecture facilitates seamless substitution of the local language model, allowing for future performance enhancements without significant refactoring.
