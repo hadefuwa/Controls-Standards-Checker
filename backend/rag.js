@@ -8,7 +8,7 @@ const { getEmbedding, generateResponse } = require('../llm/ollama_client');
 // Configuration
 const EMBEDDINGS_FILE = path.join(__dirname, 'embedding_db', 'embeddings.json');
 const EMBEDDING_MODEL = 'all-minilm';  // Model used for embeddings
-const GENERATION_MODEL = 'llama3.2:1b';  // Model used for text generation
+const GENERATION_MODEL = 'llama3.2-vision';  // Model used for text generation and image understanding
 const TOP_K_CHUNKS = 3;  // Number of relevant chunks to use for context
 
 // In-memory cache for document embeddings
@@ -71,11 +71,12 @@ function cosineSimilarity(vecA, vecB) {
 }
 
 /**
- * Main RAG function - Answer a question using retrieval and generation
+ * Answer a question with optional image input using retrieval and generation
  * @param {string} userQuery - The user's question
+ * @param {string} imageBase64 - Optional base64 encoded image
  * @returns {Promise<Object>} - Object containing answer, sources, and metadata
  */
-async function answerQuestion(userQuery) {
+async function answerQuestion(userQuery, imageBase64 = null) {
     console.log('=== Starting RAG Process ===');
     console.log(`📝 User Query: "${userQuery}"`);
     
@@ -119,13 +120,24 @@ async function answerQuestion(userQuery) {
         const messages = [
             {
                 role: 'system',
-                content: 'You are an industrial automation expert. Answer questions based ONLY on the provided context from official documentation. If the answer is not clearly stated in the context, say "I cannot find a direct answer in the provided documentation." Be precise and cite which source sections support your answer.'
-            },
-            {
-                role: 'user',
-                content: `Context:\n${context}\n\nQuestion: ${userQuery}`
+                content: 'You are an industrial automation expert. Answer questions based ONLY on the provided context from official documentation. If an image is provided, analyze it in the context of industrial machinery safety and compliance. If the answer is not clearly stated in the context, say "I cannot find a direct answer in the provided documentation." Be precise and cite which source sections support your answer.'
             }
         ];
+
+        // Add user message with optional image
+        if (imageBase64) {
+            console.log('🖼️ Image provided with query');
+            messages.push({
+                role: 'user',
+                content: `Context:\n${context}\n\nQuestion: ${userQuery}\n\nPlease analyze the provided image in the context of industrial automation safety and compliance.`,
+                images: [imageBase64]
+            });
+        } else {
+            messages.push({
+                role: 'user',
+                content: `Context:\n${context}\n\nQuestion: ${userQuery}`
+            });
+        }
         
         // Step 6: Generate AI response
         console.log('🤖 Generating AI response...');

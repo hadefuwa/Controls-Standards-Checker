@@ -62,10 +62,13 @@ app.on('window-all-closed', function () {
 const { answerQuestion, loadDocuments } = require('./backend/rag');
 
 // IPC Handlers - Connect frontend to backend
-ipcMain.handle('ask-question', async (event, question) => {
+ipcMain.handle('ask-question', async (event, question, imageBase64 = null) => {
   try {
     console.log('📝 Main process received question:', question);
-    const result = await answerQuestion(question);
+    if (imageBase64) {
+      console.log('🖼️ Main process received image data');
+    }
+    const result = await answerQuestion(question, imageBase64);
     
     return {
       success: true,

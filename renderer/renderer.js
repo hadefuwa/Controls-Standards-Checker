@@ -23,6 +23,7 @@ const quickButtons = document.querySelectorAll('.quick-btn');
 let isProcessing = false;
 let messageHistory = [];
 let systemStartTime = new Date();
+let currentImage = null; // Store current pasted image
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', () => {
@@ -76,6 +77,10 @@ function setupEventListeners() {
         const isEmpty = questionInput.value.trim() === '';
         sendButton.style.opacity = isEmpty ? '0.6' : '1';
     });
+
+    // Image paste functionality
+    questionInput.addEventListener('paste', handleImagePaste);
+    document.addEventListener('paste', handleImagePaste);
 }
 
 /**
@@ -170,9 +175,9 @@ async function handleSendMessage() {
     // Update system status
     updateSystemStatus('Processing Query...', 'processing');
     
-    try {
-        logSystemEvent('Processing user query: ' + question.substring(0, 50) + '...');
-        const result = await window.electronAPI.askQuestion(question);
+            try {
+            logSystemEvent('Processing user query: ' + question.substring(0, 50) + '...');
+            const result = await window.electronAPI.askQuestion(question, currentImage);
         
         if (result.success) {
             // Log successful response
@@ -204,6 +209,7 @@ async function handleSendMessage() {
         updateSystemStatus('System Failure', 'error');
     } finally {
         setProcessingState(false);
+        clearImagePreview(); // Clear image after sending
         questionInput.focus();
     }
 }
@@ -376,6 +382,55 @@ document.addEventListener('keydown', (e) => {
         logSystemEvent('Processing cancellation requested');
     }
 });
+
+/**
+ * Handle image paste functionality
+ */
+function handleImagePaste(e) {
+    if (!e.clipboardData || !e.clipboardData.files) return;
+    
+    const files = Array.from(e.clipboardData.files);
+    const imageFile = files.find(file => file.type.startsWith('image/'));
+    
+    if (imageFile) {
+        e.preventDefault();
+        logSystemEvent('Image pasted: ' + imageFile.name + ' (' + imageFile.type + ')');
+        
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const base64Data = event.target.result.split(',')[1]; // Remove data URL prefix
+            currentImage = base64Data;
+            showImagePreview(event.target.result, imageFile.name);
+        };
+        reader.readAsDataURL(imageFile);
+    }
+}
+
+/**
+ * Display image preview in the input area
+ */
+function showImagePreview(imageSrc, filename) {
+    const imagePreview = document.getElementById('imagePreview');
+    imagePreview.innerHTML = `
+        <div class="image-preview-header">
+            <span>📷 Image: ${filename}</span>
+            <button class="remove-image-btn" onclick="clearImagePreview()">Remove</button>
+        </div>
+        <img src="${imageSrc}" alt="Pasted image preview">
+    `;
+    imagePreview.classList.remove('hidden');
+}
+
+/**
+ * Clear image preview and reset current image
+ */
+function clearImagePreview() {
+    const imagePreview = document.getElementById('imagePreview');
+    imagePreview.classList.add('hidden');
+    imagePreview.innerHTML = '';
+    currentImage = null;
+    logSystemEvent('Image preview cleared');
+}
 
 // Prevent file drag and drop
 document.addEventListener('dragover', (e) => e.preventDefault());

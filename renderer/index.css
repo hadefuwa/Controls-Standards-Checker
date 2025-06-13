@@ -604,6 +604,47 @@ code {
     border-left: 3px solid #3b82f6;
 }
 
+/* Image Preview Styling */
+.image-preview {
+    margin-top: 12px;
+    padding: 12px;
+    background: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 6px;
+    border-left: 3px solid #0ea5e9;
+}
+
+.image-preview img {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: 4px;
+    border: 1px solid #374151;
+}
+
+.image-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.remove-image-btn {
+    background: #ef4444;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.remove-image-btn:hover {
+    background: #dc2626;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .header {
