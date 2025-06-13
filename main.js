@@ -74,7 +74,9 @@ ipcMain.handle('ask-question', async (event, question, imageBase64 = null) => {
       success: true,
       answer: result.answer,
       sources: result.sources,
-      metadata: result.metadata
+      metadata: result.metadata,
+      hasImage: result.hasImage,
+      modelUsed: result.modelUsed
     };
   } catch (error) {
     console.error('❌ Main process error:', error.message);

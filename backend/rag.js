@@ -8,8 +8,10 @@ const { getEmbedding, generateResponse } = require('../llm/ollama_client');
 // Configuration
 const EMBEDDINGS_FILE = path.join(__dirname, 'embedding_db', 'embeddings.json');
 const EMBEDDING_MODEL = 'all-minilm';  // Model used for embeddings
-const GENERATION_MODEL = 'llama3.2-vision';  // Model used for text generation and image understanding
+const TEXT_MODEL = 'llama3.2:1b';  // Lightweight model for text-only queries
+const VISION_MODEL = 'llama3.2-vision';  // Vision model for image analysis
 const TOP_K_CHUNKS = 3;  // Number of relevant chunks to use for context
+const VISION_TIMEOUT = 60000;  // 60 second timeout for vision model
 
 // In-memory cache for document embeddings
 let documentChunks = null;
@@ -71,6 +73,30 @@ function cosineSimilarity(vecA, vecB) {
 }
 
 /**
+ * Generate response with timeout to prevent hanging
+ * @param {string} model - Model to use
+ * @param {Array} messages - Messages array
+ * @param {number} timeout - Timeout in milliseconds
+ * @returns {Promise<string>} - Generated response
+ */
+async function generateResponseWithTimeout(model, messages, timeout = VISION_TIMEOUT) {
+    return new Promise(async (resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+            reject(new Error(`Model ${model} timed out after ${timeout/1000} seconds`));
+        }, timeout);
+        
+        try {
+            const response = await generateResponse(model, messages);
+            clearTimeout(timeoutId);
+            resolve(response);
+        } catch (error) {
+            clearTimeout(timeoutId);
+            reject(error);
+        }
+    });
+}
+
+/**
  * Answer a question with optional image input using retrieval and generation
  * @param {string} userQuery - The user's question
  * @param {string} imageBase64 - Optional base64 encoded image
@@ -116,38 +142,74 @@ async function answerQuestion(userQuery, imageBase64 = null) {
         
         console.log(`✅ Context constructed (${context.length} characters)`);
         
-        // Step 5: Prepare messages for AI generation
-        const messages = [
-            {
-                role: 'system',
-                content: 'You are an industrial automation expert. Answer questions based ONLY on the provided context from official documentation. If an image is provided, analyze it in the context of industrial machinery safety and compliance. If the answer is not clearly stated in the context, say "I cannot find a direct answer in the provided documentation." Be precise and cite which source sections support your answer.'
-            }
-        ];
-
-        // Add user message with optional image
+        // Step 5: Choose model and prepare messages based on image presence
+        let modelToUse = TEXT_MODEL;
+        let aiResponse;
+        
         if (imageBase64) {
-            console.log('🖼️ Image provided with query');
-            messages.push({
-                role: 'user',
-                content: `Context:\n${context}\n\nQuestion: ${userQuery}\n\nPlease analyze the provided image in the context of industrial automation safety and compliance.`,
-                images: [imageBase64]
-            });
+            console.log('🖼️ Image provided - attempting vision analysis...');
+            modelToUse = VISION_MODEL;
+            
+            const messages = [
+                {
+                    role: 'system',
+                    content: 'You are an industrial automation expert. Analyze the provided image in the context of machinery safety and compliance. Answer questions based on both the image content and the provided documentation context. Be precise and cite which source sections support your answer.'
+                },
+                {
+                    role: 'user',
+                    content: `Context:\n${context}\n\nQuestion: ${userQuery}\n\nPlease analyze the provided image in the context of industrial automation safety and compliance.`,
+                    images: [imageBase64]
+                }
+            ];
+            
+            try {
+                console.log('🤖 Generating vision response with timeout...');
+                aiResponse = await generateResponseWithTimeout(VISION_MODEL, messages, VISION_TIMEOUT);
+                console.log('✅ Vision response generated successfully');
+            } catch (error) {
+                console.warn('⚠️ Vision model failed or timed out, falling back to text-only analysis:', error.message);
+                
+                // Fallback to text-only model
+                modelToUse = TEXT_MODEL;
+                const fallbackMessages = [
+                    {
+                        role: 'system',
+                        content: 'You are an industrial automation expert. The user provided an image, but image analysis is currently unavailable. Answer their question based on the provided documentation context and acknowledge that you cannot analyze the image at this time.'
+                    },
+                    {
+                        role: 'user',
+                        content: `Context:\n${context}\n\nQuestion: ${userQuery}\n\nNote: An image was provided but cannot be analyzed at this time.`
+                    }
+                ];
+                
+                console.log('🤖 Generating fallback text response...');
+                aiResponse = await generateResponse(TEXT_MODEL, fallbackMessages);
+                console.log('✅ Fallback response generated successfully');
+            }
         } else {
-            messages.push({
-                role: 'user',
-                content: `Context:\n${context}\n\nQuestion: ${userQuery}`
-            });
+            // Text-only query
+            const messages = [
+                {
+                    role: 'system',
+                    content: 'You are an industrial automation expert. Answer questions based ONLY on the provided context from official documentation. If the answer is not clearly stated in the context, say "I cannot find a direct answer in the provided documentation." Be precise and cite which source sections support your answer.'
+                },
+                {
+                    role: 'user',
+                    content: `Context:\n${context}\n\nQuestion: ${userQuery}`
+                }
+            ];
+            
+            console.log('🤖 Generating text response...');
+            aiResponse = await generateResponse(TEXT_MODEL, messages);
+            console.log('✅ Text response generated successfully');
         }
         
-        // Step 6: Generate AI response
-        console.log('🤖 Generating AI response...');
-        const aiResponse = await generateResponse(GENERATION_MODEL, messages);
-        console.log('✅ Response generated successfully');
-        
-        // Step 7: Prepare result object
+        // Step 6: Prepare result object
         const result = {
             answer: aiResponse,
             query: userQuery,
+            hasImage: !!imageBase64,
+            modelUsed: modelToUse,
             sources: relevantChunks.map(chunk => ({
                 id: chunk.id,
                 source: chunk.metadata.source,
@@ -159,7 +221,7 @@ async function answerQuestion(userQuery, imageBase64 = null) {
                 relevant_chunks_used: relevantChunks.length,
                 top_similarity: relevantChunks[0]?.similarity || 0,
                 embedding_model: EMBEDDING_MODEL,
-                generation_model: GENERATION_MODEL
+                generation_model: modelToUse
             }
         };
         

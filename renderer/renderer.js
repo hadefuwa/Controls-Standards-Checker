@@ -175,26 +175,31 @@ async function handleSendMessage() {
     // Update system status
     updateSystemStatus('Processing Query...', 'processing');
     
-            try {
+                    try {
             logSystemEvent('Processing user query: ' + question.substring(0, 50) + '...');
+            if (currentImage) {
+                updateSystemStatus('Analyzing Image...', 'processing');
+            }
             const result = await window.electronAPI.askQuestion(question, currentImage);
-        
-        if (result.success) {
-            // Log successful response
-            messageHistory.push({
-                type: 'assistant',
-                content: result.answer,
-                sources: result.sources,
-                metadata: result.metadata,
-                timestamp: new Date(),
-                sessionTime: (new Date() - systemStartTime) / 1000
-            });
             
-            // Display AI response with typing animation
-            await addMessageWithTyping(result.answer, 'assistant', result.sources, result.metadata);
-            updateSystemStatus('System Ready', 'ready');
-            logSystemEvent('Query processed successfully');
-        } else {
+            if (result.success) {
+                // Log successful response
+                messageHistory.push({
+                    type: 'assistant',
+                    content: result.answer,
+                    sources: result.sources,
+                    metadata: result.metadata,
+                    hasImage: result.hasImage,
+                    modelUsed: result.modelUsed,
+                    timestamp: new Date(),
+                    sessionTime: (new Date() - systemStartTime) / 1000
+                });
+                
+                // Display AI response with typing animation
+                await addMessageWithTyping(result.answer, 'assistant', result.sources, result.metadata);
+                updateSystemStatus('System Ready', 'ready');
+                logSystemEvent('Query processed successfully using ' + result.modelUsed);
+            } else {
             // Handle processing errors
             const errorMessage = `System Error: Unable to process query.\n\nError Details: ${result.error}\n\nRequired System Components:\n• Ollama service running\n• Phi3:mini model installed\n• Document embeddings configured`;
             await addMessageWithTyping(errorMessage, 'assistant');
