@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Industrial Automation AI Assistant</title>
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <h1>🏭 Industrial AI Assistant</h1>
+                <p>Expert knowledge from EU Machinery Directive</p>
+            </div>
+            <div class="status" id="status">
+                <div class="status-indicator" id="statusIndicator"></div>
+                <span id="statusText">Ready</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        <!-- Chat Container -->
+        <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <!-- Welcome Message -->
+                <div class="message assistant-message">
+                    <div class="message-avatar">🤖</div>
+                    <div class="message-content">
+                        <div class="message-text">
+                            <strong>Welcome to your Industrial Automation AI Assistant!</strong><br><br>
+                            I can help you with questions about:
+                            <ul>
+                                <li>🔒 Machinery safety requirements</li>
+                                <li>📋 CE marking and compliance</li>
+                                <li>⚠️ Risk assessment procedures</li>
+                                <li>🛑 Emergency stop requirements</li>
+                                <li>📖 EU Machinery Directive 2006/42/EC</li>
+                            </ul>
+                            Ask me anything about industrial automation!
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-area">
+                <div class="input-container">
+                    <textarea 
+                        id="questionInput" 
+                        placeholder="Ask about machinery safety, CE marking, compliance requirements..."
+                        rows="3"
+                    ></textarea>
+                    <button id="sendButton" class="send-button">
+                        <span id="sendButtonText">Send</span>
+                        <div id="sendButtonSpinner" class="spinner hidden"></div>
+                    </button>
+                </div>
+                
+                <!-- Quick Questions -->
+                <div class="quick-questions">
+                    <p>Quick questions:</p>
+                    <div class="quick-buttons">
+                        <button class="quick-btn" data-question="What are the essential health and safety requirements for machinery?">
+                            Safety Requirements
+                        </button>
+                        <button class="quick-btn" data-question="How should CE marking be applied to industrial equipment?">
+                            CE Marking
+                        </button>
+                        <button class="quick-btn" data-question="What are the emergency stop requirements?">
+                            Emergency Stop
+                        </button>
+                        <button class="quick-btn" data-question="How should risk assessment be conducted for machinery?">
+                            Risk Assessment
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="renderer.js"></script>
+</body>
+</html> 
