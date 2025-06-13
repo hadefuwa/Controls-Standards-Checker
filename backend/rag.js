@@ -6,7 +6,7 @@ const path = require('path');
 const { getEmbedding, generateResponse } = require('../llm/ollama_client');
 
 // Configuration
-const EMBEDDINGS_FILE = path.join(__dirname, 'embedding_db', 'embeddings.json');
+let EMBEDDINGS_FILE = path.join(__dirname, 'embedding_db', 'embeddings.json');  // Default path, can be overridden
 const EMBEDDING_MODEL = 'all-minilm';  // Model used for embeddings
 const TEXT_MODEL = 'llama3.2:1b';  // Lightweight model for text-only queries
 const VISION_MODEL = 'llama3.2-vision';  // Vision model for image analysis
@@ -15,6 +15,17 @@ const VISION_TIMEOUT = 60000;  // 60 second timeout for vision model
 
 // In-memory cache for document embeddings
 let documentChunks = null;
+
+/**
+ * Set the embeddings file path (called by main process)
+ * @param {string} embeddingsPath - Path to the embeddings.json file
+ */
+function setEmbeddingsPath(embeddingsPath) {
+    EMBEDDINGS_FILE = embeddingsPath;
+    // Clear cache so it reloads from new path
+    documentChunks = null;
+    console.log('📁 Updated embeddings path:', EMBEDDINGS_FILE);
+}
 
 /**
  * Load document chunks and embeddings from file
@@ -269,5 +280,6 @@ module.exports = {
     answerQuestion,
     searchOnly,
     loadDocuments,
-    cosineSimilarity
+    cosineSimilarity,
+    setEmbeddingsPath
 }; 

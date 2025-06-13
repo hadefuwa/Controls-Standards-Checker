@@ -15,7 +15,7 @@
                     <div class="icon-industrial"></div>
                 </div>
                 <div class="logo-text">
-                    <h1>Industrial AI Assistant</h1>
+                    <h1>Hamed Adefuwas Industrial AI Assistant</h1>
                     <p>EU Machinery Directive Compliance System</p>
                 </div>
             </div>
@@ -29,6 +29,54 @@
 
     <!-- Main Content -->
     <main class="main">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h3>Document Manager</h3>
+                <button class="sidebar-toggle" id="sidebarToggle">
+                    <div class="toggle-icon"></div>
+                </button>
+            </div>
+            
+            <div class="sidebar-content">
+                <!-- Document Status -->
+                <div class="doc-status">
+                    <div class="status-item">
+                        <span class="status-label">Documents Loaded:</span>
+                        <span class="status-value" id="docCount">Loading...</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Total Chunks:</span>
+                        <span class="status-value" id="chunkCount">Loading...</span>
+                    </div>
+                </div>
+                
+                <!-- Document Actions -->
+                <div class="doc-actions">
+                    <button class="action-btn primary" id="addDocBtn">
+                        <div class="btn-icon add"></div>
+                        <span>Add Documents</span>
+                    </button>
+                    <button class="action-btn secondary" id="refreshDocsBtn">
+                        <div class="btn-icon refresh"></div>
+                        <span>Refresh List</span>
+                    </button>
+                    <button class="action-btn warning" id="reindexBtn">
+                        <div class="btn-icon reindex"></div>
+                        <span>Rebuild Index</span>
+                    </button>
+                </div>
+                
+                <!-- Document List -->
+                <div class="doc-list">
+                    <h4>Current Documents</h4>
+                    <div class="doc-items" id="docItems">
+                        <div class="loading-indicator">Loading documents...</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+        
         <!-- Chat Container -->
         <div class="chat-container">
             <div class="chat-messages" id="chatMessages">
@@ -130,6 +178,9 @@
             </div>
         </div>
     </main>
+
+    <!-- Hidden file input for document uploads -->
+    <input type="file" id="fileInput" class="file-input" multiple accept=".txt,.pdf,.doc,.docx,.md">
 
     <script src="renderer.js"></script>
 </body>

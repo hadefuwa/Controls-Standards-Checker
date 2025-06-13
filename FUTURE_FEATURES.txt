@@ -1,0 +1,56 @@
+INDUSTRIAL AUTOMATION AI ASSISTANT - FUTURE FEATURES
+================================================================
+
+## Document Repository Management ✅ (IMPLEMENTING NOW)
+- View Current Documents: Show all documents currently loaded with file names, sizes, and status
+- Add Documents: Drag & drop or file picker to add new PDFs, text files, etc.
+- Remove Documents: Delete documents from the repository 
+- Re-index: Button to rebuild the embeddings after adding/removing documents
+- Document Status: Show if documents are loaded, indexing progress, errors
+
+## Conversation Management
+- Save Conversations: Export important Q&A sessions as PDF or text
+- Search History: Find previous questions you've asked
+- Bookmarks: Mark important answers for quick access later
+- Conversation Templates: Pre-made questions for common compliance topics
+
+## Enhanced Analysis
+- Document Preview: Click on a document to view its contents
+- Source Citations: Show exactly which document and page an answer came from
+- Compliance Checklist: Generate checklists based on regulations
+- Compare Documents: Side-by-side comparison of different standards
+- Risk Assessment Generator: Create risk assessments based on machinery type
+
+## User Experience Improvements
+- Settings Panel: Choose AI models, response length, language
+- Export Reports: Generate compliance reports for audits
+- Themes: Light/dark mode toggle (currently has dark engineering theme)
+- Font Size Control: Better readability options
+- Keyboard Shortcuts: Quick access to common functions
+
+## Advanced Features
+- CAD File Support: Upload and analyze technical drawings (DWG, STEP files)
+- Multi-language: Support for different languages (German, French, etc.)
+- Offline Mode: Ensure everything works without internet (already mostly offline)
+- Integration APIs: Connect with other engineering software
+- Version Control: Track changes to document repository
+
+## Professional Features
+- User Authentication: Multi-user support for teams
+- Audit Trail: Log all questions and answers for compliance audits
+- Custom Regulations: Add company-specific standards and procedures
+- Batch Processing: Analyze multiple documents simultaneously
+- Advanced Search: Full-text search across all documents
+
+## Industry-Specific Modules
+- Machinery Safety: CE marking, risk assessment tools
+- Process Safety: HAZOP analysis, SIL calculations
+- Quality Management: ISO 9001 compliance tools
+- Environmental: ISO 14001 environmental management
+
+PRIORITY ORDER:
+1. Document Manager (Current Implementation)
+2. Source Citations with Document/Page References
+3. Conversation Management & Export
+4. Settings Panel
+5. Enhanced Analysis Tools 

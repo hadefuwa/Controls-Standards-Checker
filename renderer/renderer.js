@@ -441,11 +441,276 @@ function clearImagePreview() {
 document.addEventListener('dragover', (e) => e.preventDefault());
 document.addEventListener('drop', (e) => e.preventDefault());
 
+// ========== DOCUMENT MANAGER FUNCTIONALITY ==========
+
+let documentManagerInitialized = false;
+
+/**
+ * Initialize document manager functionality
+ */
+async function initializeDocumentManager() {
+    if (documentManagerInitialized) return;
+    
+    logSystemEvent('Initializing document manager...');
+    
+    // Setup sidebar toggle
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('sidebar');
+    
+    sidebarToggle.addEventListener('click', () => {
+        sidebar.classList.toggle('collapsed');
+        logSystemEvent('Sidebar toggled');
+    });
+    
+    // Setup document action buttons
+    const addDocBtn = document.getElementById('addDocBtn');
+    const refreshDocsBtn = document.getElementById('refreshDocsBtn');
+    const reindexBtn = document.getElementById('reindexBtn');
+    const fileInput = document.getElementById('fileInput');
+    
+    // Add documents functionality
+    addDocBtn.addEventListener('click', () => {
+        fileInput.click();
+    });
+    
+    fileInput.addEventListener('change', handleFileSelection);
+    
+    // Refresh documents list
+    refreshDocsBtn.addEventListener('click', loadDocumentsList);
+    
+    // Rebuild index
+    reindexBtn.addEventListener('click', handleReindexDocuments);
+    
+    // Load initial documents list
+    await loadDocumentsList();
+    
+    documentManagerInitialized = true;
+    logSystemEvent('Document manager initialized successfully');
+}
+
+/**
+ * Handle file selection for adding documents
+ */
+async function handleFileSelection(event) {
+    const files = Array.from(event.target.files);
+    if (files.length === 0) return;
+    
+    logSystemEvent(`Selected ${files.length} file(s) for upload`);
+    
+    // Disable add button during upload
+    const addDocBtn = document.getElementById('addDocBtn');
+    addDocBtn.disabled = true;
+    addDocBtn.innerHTML = '<div class="btn-icon add"></div><span>Uploading...</span>';
+    
+    try {
+        for (const file of files) {
+            await uploadDocument(file);
+        }
+        
+        // Refresh the documents list after successful uploads
+        await loadDocumentsList();
+        showSystemMessage('Documents uploaded successfully. The system will rebuild the index automatically.');
+        
+    } catch (error) {
+        console.error('Error uploading documents:', error);
+        showSystemMessage('Error uploading documents: ' + error.message);
+    } finally {
+        // Re-enable add button
+        addDocBtn.disabled = false;
+        addDocBtn.innerHTML = '<div class="btn-icon add"></div><span>Add Documents</span>';
+        
+        // Clear file input
+        event.target.value = '';
+    }
+}
+
+/**
+ * Upload a single document to the server
+ */
+async function uploadDocument(file) {
+    const formData = new FormData();
+    formData.append('document', file);
+    
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            try {
+                const result = await window.electronAPI.uploadDocument({
+                    name: file.name,
+                    content: e.target.result,
+                    size: file.size,
+                    type: file.type
+                });
+                
+                if (result.success) {
+                    logSystemEvent(`Successfully uploaded: ${file.name}`);
+                    resolve(result);
+                } else {
+                    reject(new Error(result.error || 'Upload failed'));
+                }
+            } catch (error) {
+                reject(error);
+            }
+        };
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsText(file);
+    });
+}
+
+/**
+ * Load and display the documents list
+ */
+async function loadDocumentsList() {
+    const docItems = document.getElementById('docItems');
+    const docCount = document.getElementById('docCount');
+    const chunkCount = document.getElementById('chunkCount');
+    
+    // Show loading state
+    docItems.innerHTML = '<div class="loading-indicator">Loading documents...</div>';
+    docCount.textContent = 'Loading...';
+    chunkCount.textContent = 'Loading...';
+    
+    try {
+        const result = await window.electronAPI.getDocumentsList();
+        
+        if (result.success) {
+            displayDocumentsList(result.documents);
+            
+            // Update status counters
+            docCount.textContent = result.documents.length;
+            chunkCount.textContent = result.totalChunks || 'N/A';
+            
+            logSystemEvent(`Loaded ${result.documents.length} documents`);
+        } else {
+            throw new Error(result.error || 'Failed to load documents');
+        }
+    } catch (error) {
+        console.error('Error loading documents:', error);
+        docItems.innerHTML = '<div class="error-indicator">Error loading documents</div>';
+        docCount.textContent = 'Error';
+        chunkCount.textContent = 'Error';
+    }
+}
+
+/**
+ * Display the documents list in the UI
+ */
+function displayDocumentsList(documents) {
+    const docItems = document.getElementById('docItems');
+    
+    if (documents.length === 0) {
+        docItems.innerHTML = '<div class="loading-indicator">No documents found</div>';
+        return;
+    }
+    
+    const documentsHtml = documents.map(doc => `
+        <div class="doc-item" data-filename="${doc.name}">
+            <div class="doc-item-header">
+                <div class="doc-name">${doc.name}</div>
+                <button class="doc-remove" onclick="removeDocument('${doc.name}')" title="Remove document">×</button>
+            </div>
+            <div class="doc-meta">
+                <span class="doc-size">${formatFileSize(doc.size)}</span>
+                <span class="doc-chunks">${doc.chunks || 0} chunks</span>
+            </div>
+        </div>
+    `).join('');
+    
+    docItems.innerHTML = documentsHtml;
+}
+
+/**
+ * Remove a document from the system
+ */
+async function removeDocument(filename) {
+    if (!confirm(`Are you sure you want to remove "${filename}"? This action cannot be undone.`)) {
+        return;
+    }
+    
+    logSystemEvent(`Removing document: ${filename}`);
+    
+    try {
+        const result = await window.electronAPI.removeDocument(filename);
+        
+        if (result.success) {
+            await loadDocumentsList();
+            showSystemMessage(`Document "${filename}" removed successfully.`);
+            logSystemEvent(`Successfully removed: ${filename}`);
+        } else {
+            throw new Error(result.error || 'Failed to remove document');
+        }
+    } catch (error) {
+        console.error('Error removing document:', error);
+        showSystemMessage('Error removing document: ' + error.message);
+    }
+}
+
+// Make removeDocument globally accessible for onclick handlers
+window.removeDocument = removeDocument;
+
+/**
+ * Handle reindexing documents
+ */
+async function handleReindexDocuments() {
+    if (!confirm('Reindexing will rebuild the entire search index. This may take a few minutes. Continue?')) {
+        return;
+    }
+    
+    const reindexBtn = document.getElementById('reindexBtn');
+    const originalText = reindexBtn.innerHTML;
+    
+    // Disable button and show progress
+    reindexBtn.disabled = true;
+    reindexBtn.innerHTML = '<div class="btn-icon reindex"></div><span>Reindexing...</span>';
+    
+    logSystemEvent('Starting document reindexing...');
+    
+    try {
+        const result = await window.electronAPI.reindexDocuments();
+        
+        if (result.success) {
+            await loadDocumentsList();
+            showSystemMessage('Document index rebuilt successfully. System is ready for queries.');
+            logSystemEvent('Reindexing completed successfully');
+        } else {
+            throw new Error(result.error || 'Reindexing failed');
+        }
+    } catch (error) {
+        console.error('Error reindexing documents:', error);
+        showSystemMessage('Error reindexing documents: ' + error.message);
+    } finally {
+        // Re-enable button
+        reindexBtn.disabled = false;
+        reindexBtn.innerHTML = originalText;
+    }
+}
+
+/**
+ * Format file size for display
+ */
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Initialize document manager when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    // Small delay to ensure all other initialization is complete
+    setTimeout(initializeDocumentManager, 500);
+});
+
 // Export functions for testing (if needed)
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         addMessage,
         setProcessingState,
-        updateSystemStatus
+        updateSystemStatus,
+        initializeDocumentManager,
+        loadDocumentsList
     };
 } 
