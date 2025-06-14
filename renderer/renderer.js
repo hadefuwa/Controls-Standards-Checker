@@ -437,6 +437,9 @@ function handleImagePaste(e) {
             const base64Data = event.target.result.split(',')[1]; // Remove data URL prefix
             currentImage = base64Data;
             showImagePreview(event.target.result, imageFile.name);
+            
+            // Auto-select vision model when image is pasted
+            autoSelectVisionModel();
         };
         reader.readAsDataURL(imageFile);
     }
@@ -465,7 +468,58 @@ function clearImagePreview() {
     imagePreview.classList.add('hidden');
     imagePreview.innerHTML = '';
     currentImage = null;
+    
+    // Revert to previous model if we auto-switched
+    const modelSelect = document.getElementById('modelSelect');
+    const previousModel = modelSelect.getAttribute('data-previous-model');
+    
+    if (previousModel) {
+        modelSelect.value = previousModel;
+        modelSelect.removeAttribute('data-previous-model');
+        showSystemMessage(`🔄 Reverted to previous model: ${previousModel}`);
+        logSystemEvent(`Reverted to previous model: ${previousModel}`);
+    }
+    
     logSystemEvent('Image preview cleared');
+}
+
+/**
+ * Auto-select vision model when image is detected
+ */
+function autoSelectVisionModel() {
+    const modelSelect = document.getElementById('modelSelect');
+    const currentModel = modelSelect.value;
+    
+    // List of vision-capable models
+    const visionModels = ['llava:13b', 'llava:7b', 'llava:latest', 'bakllava'];
+    
+    // Check if current model already supports vision
+    const currentSupportsVision = visionModels.some(vm => 
+        currentModel.toLowerCase().includes(vm.split(':')[0])
+    );
+    
+    if (!currentSupportsVision) {
+        // Try to find a vision model in the dropdown
+        const options = Array.from(modelSelect.options);
+        const visionOption = options.find(option => 
+            visionModels.some(vm => option.value.toLowerCase().includes(vm.split(':')[0]))
+        );
+        
+        if (visionOption) {
+            // Store the previous model for easy switching back
+            modelSelect.setAttribute('data-previous-model', currentModel);
+            modelSelect.value = visionOption.value;
+            
+            showSystemMessage(`🖼️ Auto-switched to vision model: ${visionOption.text}`);
+            logSystemEvent(`Auto-selected vision model: ${visionOption.value} (was: ${currentModel})`);
+        } else {
+            showSystemMessage(`⚠️ Image detected but no vision model available. Install "llava" model: ollama pull llava`);
+            logSystemEvent('Warning: Image pasted but no vision model available');
+        }
+    } else {
+        showSystemMessage(`🖼️ Image ready for analysis with ${currentModel}`);
+        logSystemEvent(`Image ready for analysis with current vision model: ${currentModel}`);
+    }
 }
 
 // Prevent file drag and drop

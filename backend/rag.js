@@ -178,22 +178,55 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'qw
         
         console.log(`✅ Context constructed (${context.length} characters)`);
         
-        // Step 5: Use the selected model
+        // Step 5: Use the selected model and handle images
         const modelToUse = selectedModel;
         
-        // Create simple, concise messages
-        const messages = [
-            {
-                role: 'system',
-                content: 'You are an expert in European industrial safety directives and regulations. Answer questions about the Machinery Directive, Low Voltage Directive (LVD), EMC Directive, and related safety standards. Use the provided context to give accurate, specific answers. If the context doesn\'t contain enough information, say so clearly.'
-            },
-            {
-                role: 'user',
-                content: `Context: ${context}\n\nQuestion: ${userQuery}\n\nPlease provide a detailed answer based on the context.`
-            }
-        ];
+        // Check if image is provided and if model supports vision
+        const isVisionModel = modelToUse.toLowerCase().includes('llava') || modelToUse.toLowerCase().includes('bakllava');
         
-        console.log(`🤖 Generating text response using ${modelToUse}...`);
+        let messages;
+        if (imageBase64 && isVisionModel) {
+            // Vision model with image
+            console.log('🖼️ Using vision model with image analysis...');
+            messages = [
+                {
+                    role: 'system',
+                    content: 'You are an expert in European industrial safety directives and regulations. Answer questions about the Machinery Directive, Low Voltage Directive (LVD), EMC Directive, and related safety standards. When analyzing images, focus on safety aspects, compliance requirements, and identify relevant standards. Use the provided context to give accurate, specific answers.'
+                },
+                {
+                    role: 'user',
+                    content: `Context: ${context}\n\nQuestion: ${userQuery}\n\nPlease analyze the provided image and answer the question based on both the image content and the context provided.`,
+                    images: [`data:image/jpeg;base64,${imageBase64}`]
+                }
+            ];
+        } else if (imageBase64 && !isVisionModel) {
+            // Image provided but not a vision model
+            console.log('⚠️ Image provided but model does not support vision. Processing text only.');
+            messages = [
+                {
+                    role: 'system',
+                    content: 'You are an expert in European industrial safety directives and regulations. Answer questions about the Machinery Directive, Low Voltage Directive (LVD), EMC Directive, and related safety standards. Use the provided context to give accurate, specific answers. If the context doesn\'t contain enough information, say so clearly.'
+                },
+                {
+                    role: 'user',
+                    content: `Context: ${context}\n\nQuestion: ${userQuery}\n\nNote: An image was provided but the current model does not support image analysis. Please answer based on the text context only.`
+                }
+            ];
+        } else {
+            // Text-only query
+            messages = [
+                {
+                    role: 'system',
+                    content: 'You are an expert in European industrial safety directives and regulations. Answer questions about the Machinery Directive, Low Voltage Directive (LVD), EMC Directive, and related safety standards. Use the provided context to give accurate, specific answers. If the context doesn\'t contain enough information, say so clearly.'
+                },
+                {
+                    role: 'user',
+                    content: `Context: ${context}\n\nQuestion: ${userQuery}\n\nPlease provide a detailed answer based on the context.`
+                }
+            ];
+        }
+        
+        console.log(`🤖 Generating response using ${modelToUse}${imageBase64 && isVisionModel ? ' with image analysis' : ''}...`);
         const aiResponse = await generateResponse(modelToUse, messages, signal);
         console.log('✅ Text response generated successfully');
         
