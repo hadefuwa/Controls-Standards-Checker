@@ -13,7 +13,7 @@ const VISION_MODEL = 'llava:13b';  // Vision model for image analysis
 const TOP_K_CHUNKS = 2;  // Reduce to 2 chunks for balance
 
 // Maximum context length to prevent model overload
-const MAX_CONTEXT_LENGTH = 2500;  // Sweet spot - 2500 characters
+const MAX_CONTEXT_LENGTH = 1500;  // Maximum context length to send to model (reduced for CPU performance)
 
 // In-memory cache for document embeddings
 let documentChunks = null;

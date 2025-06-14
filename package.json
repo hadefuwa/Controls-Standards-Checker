@@ -1,6 +1,6 @@
 {
   "name": "industrial-automation-assistant",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Industrial Automation AI Assistant Desktop Application - Optimized Performance",
   "main": "main.js",
   "scripts": {
