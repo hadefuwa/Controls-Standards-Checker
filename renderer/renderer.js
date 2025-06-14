@@ -575,11 +575,15 @@ async function handleGitHubRefresh() {
         
         if (result.success) {
             await loadDocumentsList();
-            showSystemMessage('Documents synchronized from GitHub successfully!');
-            logSystemEvent('GitHub document sync completed');
+            showSystemMessage(result.message);
+            logSystemEvent(`GitHub sync completed: ${result.downloadedCount} processed, ${result.conflictsResolved} conflicts resolved`);
             
             if (result.requiresReindex) {
                 showSystemMessage('Document index will be rebuilt automatically.');
+            }
+            
+            if (result.conflictsResolved > 0) {
+                showSystemMessage(`Note: ${result.conflictsResolved} document conflicts were resolved. Check your documents folder for any backup files.`);
             }
         } else {
             showSystemMessage('Failed to sync from GitHub: ' + result.message);

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
@@ -65,7 +65,10 @@ app.whenReady().then(async () => {
   ensureDirectoriesExist();
   
   // Try to update documents from GitHub first
-  await updateDocumentsFromGitHub();
+  const githubResult = await updateDocumentsFromGitHub();
+  if (githubResult.success && githubResult.conflictsResolved > 0) {
+    console.log(`🔄 ${githubResult.conflictsResolved} document conflicts were resolved during startup`);
+  }
   
   // Set the embeddings path for the RAG module
   const embeddingsFilePath = path.join(userEmbeddingsPath, 'embeddings.json');
@@ -243,6 +246,61 @@ async function downloadGitHubFile(file) {
 }
 
 /**
+ * Show conflict resolution dialog to user
+ */
+async function showConflictDialog(filename, localContent, githubContent) {
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'question',
+    title: 'Document Conflict Detected',
+    message: `The document "${filename}" exists both locally and on GitHub with different content.`,
+    detail: `Local version: ${localContent.length} characters\nGitHub version: ${githubContent.length} characters\n\nWhat would you like to do?`,
+    buttons: [
+      'Keep Local Version',
+      'Use GitHub Version', 
+      'Backup Both Versions'
+    ],
+    defaultId: 2, // Default to "Backup Both"
+    cancelId: 0,  // Cancel means keep local
+    noLink: true
+  });
+  
+  return result.response;
+}
+
+/**
+ * Handle conflict resolution choice
+ */
+async function resolveDocumentConflict(choice, filename, localPath, githubContent) {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  
+  switch (choice) {
+    case 0: // Keep Local Version
+      console.log(`📋 Keeping local version of: ${filename}`);
+      return 'kept_local';
+      
+    case 1: // Use GitHub Version
+      fs.writeFileSync(localPath, githubContent, 'utf8');
+      console.log(`📥 Replaced with GitHub version: ${filename}`);
+      return 'used_github';
+      
+    case 2: // Backup Both Versions
+      // Backup local version
+      const backupPath = localPath.replace(/(\.[^.]+)$/, `_local_${timestamp}$1`);
+      fs.copyFileSync(localPath, backupPath);
+      
+      // Write GitHub version
+      fs.writeFileSync(localPath, githubContent, 'utf8');
+      
+      console.log(`📋 Backed up local version to: ${path.basename(backupPath)}`);
+      console.log(`📥 Updated to GitHub version: ${filename}`);
+      return 'backed_up_both';
+      
+    default:
+      return 'kept_local';
+  }
+}
+
+/**
  * Update documents from GitHub
  */
 async function updateDocumentsFromGitHub() {
@@ -271,45 +329,87 @@ async function updateDocumentsFromGitHub() {
       fs.mkdirSync(githubDocsPath, { recursive: true });
     }
     
-    // Download each file
+    // Download each file with conflict detection
     console.log('⬇️ Downloading documents from GitHub...');
     let downloadedCount = 0;
+    let conflictsResolved = 0;
     
     for (const file of githubFiles) {
       try {
         const downloadedFile = await downloadGitHubFile(file);
-        const filePath = path.join(githubDocsPath, downloadedFile.name);
-        fs.writeFileSync(filePath, downloadedFile.content, 'utf8');
+        const githubTempPath = path.join(githubDocsPath, downloadedFile.name);
+        const localFilePath = path.join(userDocsPath, downloadedFile.name);
+        
+        // Write to GitHub temp directory first
+        fs.writeFileSync(githubTempPath, downloadedFile.content, 'utf8');
+        
+        // Check for conflicts with existing local files
+        if (fs.existsSync(localFilePath)) {
+          const localContent = fs.readFileSync(localFilePath, 'utf8');
+          const githubContent = downloadedFile.content;
+          
+          if (localContent !== githubContent) {
+            console.log(`⚠️ Conflict detected: ${downloadedFile.name}`);
+            
+            // Show conflict dialog and handle user choice
+            const choice = await showConflictDialog(downloadedFile.name, localContent, githubContent);
+            const result = await resolveDocumentConflict(choice, downloadedFile.name, localFilePath, githubContent);
+            
+            if (result === 'kept_local') {
+              console.log(`📋 User chose to keep local version of ${downloadedFile.name}`);
+            } else {
+              conflictsResolved++;
+            }
+          } else {
+            // Files are identical, no conflict
+            console.log(`✅ No changes needed: ${downloadedFile.name}`);
+          }
+        } else {
+          // New file, copy from GitHub temp to local
+          fs.copyFileSync(githubTempPath, localFilePath);
+          console.log(`📥 New document added: ${downloadedFile.name}`);
+        }
+        
         downloadedCount++;
-        console.log(`✅ Downloaded: ${downloadedFile.name}`);
       } catch (error) {
         console.error(`❌ Failed to download ${file.name}:`, error.message);
       }
     }
     
     if (downloadedCount > 0) {
-      // Update the documents path to use GitHub documents
-      console.log(`🎉 Successfully downloaded ${downloadedCount} documents from GitHub`);
-      
-      // Copy GitHub documents to user documents directory
-      const githubFiles = fs.readdirSync(githubDocsPath);
-      for (const file of githubFiles) {
-        const sourcePath = path.join(githubDocsPath, file);
-        const destPath = path.join(userDocsPath, file);
-        fs.copyFileSync(sourcePath, destPath);
+      // Report results
+      let message = `🎉 Successfully processed ${downloadedCount} documents from GitHub`;
+      if (conflictsResolved > 0) {
+        message += ` (${conflictsResolved} conflicts resolved)`;
       }
+      console.log(message);
       
-      console.log('📁 GitHub documents copied to user directory');
+      console.log('📁 GitHub document sync completed');
       isUsingGitHubDocuments = true;
-      return true;
+      return {
+        success: true,
+        downloadedCount,
+        conflictsResolved,
+        message
+      };
     } else {
       console.log('❌ No documents successfully downloaded - using local documents');
-      return false;
+      return {
+        success: false,
+        downloadedCount: 0,
+        conflictsResolved: 0,
+        message: 'No documents downloaded'
+      };
     }
     
   } catch (error) {
     console.error('❌ Error updating documents from GitHub:', error.message);
-    return false;
+    return {
+      success: false,
+      downloadedCount: 0,
+      conflictsResolved: 0,
+      message: error.message
+    };
   }
 }
 
@@ -398,19 +498,25 @@ ipcMain.handle('get-document-source', async (event) => {
 ipcMain.handle('refresh-github-documents', async (event) => {
   try {
     console.log('🔄 Manual GitHub document refresh requested');
-    const success = await updateDocumentsFromGitHub();
+    const result = await updateDocumentsFromGitHub();
     
-    if (success) {
-      // Trigger document reprocessing if needed
+    if (result.success) {
+      let message = `Documents synchronized from GitHub: ${result.downloadedCount} processed`;
+      if (result.conflictsResolved > 0) {
+        message += `, ${result.conflictsResolved} conflicts resolved`;
+      }
+      
       return {
         success: true,
-        message: 'Documents updated from GitHub successfully',
-        requiresReindex: true
+        message: message,
+        requiresReindex: result.downloadedCount > 0,
+        downloadedCount: result.downloadedCount,
+        conflictsResolved: result.conflictsResolved
       };
     } else {
       return {
         success: false,
-        message: 'Failed to update from GitHub - using local documents'
+        message: result.message || 'Failed to update from GitHub - using local documents'
       };
     }
   } catch (error) {
