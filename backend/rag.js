@@ -182,7 +182,9 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'qw
         const modelToUse = selectedModel;
         
         // Check if image is provided and if model supports vision
-        const isVisionModel = modelToUse.toLowerCase().includes('llava') || modelToUse.toLowerCase().includes('bakllava');
+        const isVisionModel = modelToUse.toLowerCase().includes('llava') || 
+                             modelToUse.toLowerCase().includes('bakllava') || 
+                             modelToUse.toLowerCase().includes('moondream');
         
         let messages;
         if (imageBase64 && isVisionModel) {

@@ -490,8 +490,8 @@ function autoSelectVisionModel() {
     const modelSelect = document.getElementById('modelSelect');
     const currentModel = modelSelect.value;
     
-    // List of vision-capable models (in order of preference)
-    const visionModels = ['llava:13b', 'llava:7b', 'llava:latest', 'bakllava'];
+    // List of vision-capable models (in order of speed preference)
+    const visionModels = ['moondream', 'llava:7b', 'llava:13b', 'llava:latest', 'bakllava'];
     
     // Check if current model already supports vision
     const currentSupportsVision = visionModels.some(vm => 
