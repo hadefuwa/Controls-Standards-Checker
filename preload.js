@@ -21,5 +21,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   reindexDocuments: () => ipcRenderer.invoke('reindex-documents'),
   
   // Open user documents folder
-  openDocumentsFolder: () => ipcRenderer.invoke('open-documents-folder')
+  openDocumentsFolder: () => ipcRenderer.invoke('open-documents-folder'),
+  
+  // Get document source status
+  getDocumentSource: () => ipcRenderer.invoke('get-document-source'),
+  
+  // Refresh documents from GitHub
+  refreshGitHubDocuments: () => ipcRenderer.invoke('refresh-github-documents')
 }); 

@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
 
 // Get writable paths for user data
 const userDataPath = app.getPath('userData');
@@ -15,6 +16,14 @@ let mainWindow;
 
 // Global variable to track current requests
 let currentRequestController = null;
+
+// GitHub configuration
+const GITHUB_API_BASE = 'https://api.github.com';
+const GITHUB_REPO = 'hadefuwa/Controls-Standards-Checker';
+const GITHUB_DOCS_PATH = 'backend/source_docs';
+
+// Track document source
+let isUsingGitHubDocuments = false;
 
 function createWindow() {
   // Create the browser window
@@ -51,9 +60,12 @@ function createWindow() {
 }
 
 // This method will be called when Electron has finished initialization
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Ensure user directories exist before creating window
   ensureDirectoriesExist();
+  
+  // Try to update documents from GitHub first
+  await updateDocumentsFromGitHub();
   
   // Set the embeddings path for the RAG module
   const embeddingsFilePath = path.join(userEmbeddingsPath, 'embeddings.json');
@@ -120,6 +132,187 @@ function ensureDirectoriesExist() {
   }
 }
 
+// ========== GITHUB DOCUMENT MANAGEMENT ==========
+
+/**
+ * Check if internet connection is available
+ */
+async function checkInternetConnection() {
+  return new Promise((resolve) => {
+    const req = https.request({
+      hostname: 'api.github.com',
+      port: 443,
+      path: '/',
+      method: 'HEAD',
+      timeout: 5000
+    }, (res) => {
+      resolve(true);
+    });
+    
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => resolve(false));
+    req.end();
+  });
+}
+
+/**
+ * Fetch file list from GitHub repository
+ */
+async function fetchGitHubFileList() {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'api.github.com',
+      port: 443,
+      path: `/repos/${GITHUB_REPO}/contents/${GITHUB_DOCS_PATH}`,
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Industrial-AI-Assistant'
+      },
+      timeout: 10000
+    };
+    
+    const req = https.request(options, (res) => {
+      let data = '';
+      
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      
+      res.on('end', () => {
+        try {
+          if (res.statusCode === 200) {
+            const files = JSON.parse(data);
+            // Filter for text files only
+            const textFiles = files.filter(file => 
+              file.type === 'file' && 
+              (file.name.endsWith('.txt') || file.name.endsWith('.md'))
+            );
+            resolve(textFiles);
+          } else {
+            reject(new Error(`GitHub API returned status ${res.statusCode}`));
+          }
+        } catch (error) {
+          reject(new Error('Failed to parse GitHub API response'));
+        }
+      });
+    });
+    
+    req.on('error', (error) => {
+      reject(new Error(`GitHub API request failed: ${error.message}`));
+    });
+    
+    req.on('timeout', () => {
+      reject(new Error('GitHub API request timed out'));
+    });
+    
+    req.end();
+  });
+}
+
+/**
+ * Download a single file from GitHub
+ */
+async function downloadGitHubFile(file) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(file.download_url, (res) => {
+      let data = '';
+      
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          resolve({
+            name: file.name,
+            content: data,
+            size: file.size
+          });
+        } else {
+          reject(new Error(`Failed to download ${file.name}: Status ${res.statusCode}`));
+        }
+      });
+    });
+    
+    req.on('error', (error) => {
+      reject(new Error(`Download failed for ${file.name}: ${error.message}`));
+    });
+    
+    req.end();
+  });
+}
+
+/**
+ * Update documents from GitHub
+ */
+async function updateDocumentsFromGitHub() {
+  console.log('🌐 Checking for GitHub document updates...');
+  
+  try {
+    // Check internet connection
+    const hasInternet = await checkInternetConnection();
+    if (!hasInternet) {
+      console.log('📴 No internet connection - using local documents');
+      return false;
+    }
+    
+    // Fetch file list from GitHub
+    const githubFiles = await fetchGitHubFileList();
+    console.log(`📋 Found ${githubFiles.length} documents on GitHub`);
+    
+    if (githubFiles.length === 0) {
+      console.log('⚠️ No documents found on GitHub - using local documents');
+      return false;
+    }
+    
+    // Create GitHub documents directory
+    const githubDocsPath = path.join(userDataPath, 'github_documents');
+    if (!fs.existsSync(githubDocsPath)) {
+      fs.mkdirSync(githubDocsPath, { recursive: true });
+    }
+    
+    // Download each file
+    console.log('⬇️ Downloading documents from GitHub...');
+    let downloadedCount = 0;
+    
+    for (const file of githubFiles) {
+      try {
+        const downloadedFile = await downloadGitHubFile(file);
+        const filePath = path.join(githubDocsPath, downloadedFile.name);
+        fs.writeFileSync(filePath, downloadedFile.content, 'utf8');
+        downloadedCount++;
+        console.log(`✅ Downloaded: ${downloadedFile.name}`);
+      } catch (error) {
+        console.error(`❌ Failed to download ${file.name}:`, error.message);
+      }
+    }
+    
+    if (downloadedCount > 0) {
+      // Update the documents path to use GitHub documents
+      console.log(`🎉 Successfully downloaded ${downloadedCount} documents from GitHub`);
+      
+      // Copy GitHub documents to user documents directory
+      const githubFiles = fs.readdirSync(githubDocsPath);
+      for (const file of githubFiles) {
+        const sourcePath = path.join(githubDocsPath, file);
+        const destPath = path.join(userDocsPath, file);
+        fs.copyFileSync(sourcePath, destPath);
+      }
+      
+      console.log('📁 GitHub documents copied to user directory');
+      isUsingGitHubDocuments = true;
+      return true;
+    } else {
+      console.log('❌ No documents successfully downloaded - using local documents');
+      return false;
+    }
+    
+  } catch (error) {
+    console.error('❌ Error updating documents from GitHub:', error.message);
+    return false;
+  }
+}
+
 // IPC Handlers - Connect frontend to backend
 ipcMain.handle('ask-question', async (event, question, imageBase64 = null, selectedModel = 'qwen2:0.5b') => {
   try {
@@ -140,7 +333,8 @@ ipcMain.handle('ask-question', async (event, question, imageBase64 = null, selec
       sources: result.sources,
       metadata: result.metadata,
       hasImage: result.hasImage,
-      modelUsed: result.modelUsed
+      modelUsed: result.modelUsed,
+      elapsedTime: result.elapsedTime
     };
   } catch (error) {
     console.error('❌ Main process error:', error.message);
@@ -184,6 +378,42 @@ ipcMain.handle('stop-current-request', async (event) => {
     }
   } catch (error) {
     console.error('❌ Error stopping request:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// IPC Handler: Get document source status
+ipcMain.handle('get-document-source', async (event) => {
+  return {
+    success: true,
+    isUsingGitHub: isUsingGitHubDocuments,
+    source: isUsingGitHubDocuments ? 'GitHub Repository' : 'Local Documents'
+  };
+});
+
+// IPC Handler: Force refresh from GitHub
+ipcMain.handle('refresh-github-documents', async (event) => {
+  try {
+    console.log('🔄 Manual GitHub document refresh requested');
+    const success = await updateDocumentsFromGitHub();
+    
+    if (success) {
+      // Trigger document reprocessing if needed
+      return {
+        success: true,
+        message: 'Documents updated from GitHub successfully',
+        requiresReindex: true
+      };
+    } else {
+      return {
+        success: false,
+        message: 'Failed to update from GitHub - using local documents'
+      };
+    }
+  } catch (error) {
     return {
       success: false,
       error: error.message

@@ -203,12 +203,13 @@ async function handleSendMessage() {
                 metadata: result.metadata,
                 hasImage: result.hasImage,
                 modelUsed: result.modelUsed,
+                elapsedTime: result.elapsedTime,
                 timestamp: new Date(),
                 sessionTime: (new Date() - systemStartTime) / 1000
             });
             
             // Display AI response with typing animation
-            await addMessageWithTyping(result.answer, 'assistant', result.sources, result.metadata);
+            await addMessageWithTyping(result.answer, 'assistant', result.sources, result.metadata, result.elapsedTime);
             updateSystemStatus('System Ready', 'ready');
             logSystemEvent('Query processed successfully using ' + result.modelUsed);
         } else {
@@ -268,7 +269,7 @@ function setProcessingState(processing) {
 /**
  * Add message to chat interface
  */
-function addMessage(text, sender, sources = null, metadata = null) {
+function addMessage(text, sender, sources = null, metadata = null, elapsedTime = null) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${sender}-message`;
     
@@ -298,7 +299,7 @@ function addMessage(text, sender, sources = null, metadata = null) {
     
     // Add technical sources if available
     if (sources && sources.length > 0) {
-        const sourcesDiv = createTechnicalSources(sources, metadata);
+        const sourcesDiv = createTechnicalSources(sources, metadata, elapsedTime);
         contentDiv.appendChild(sourcesDiv);
     }
     
@@ -321,7 +322,7 @@ function addMessage(text, sender, sources = null, metadata = null) {
 /**
  * Add message with professional typing effect
  */
-async function addMessageWithTyping(text, sender, sources = null, metadata = null) {
+async function addMessageWithTyping(text, sender, sources = null, metadata = null, elapsedTime = null) {
     const messageDiv = addMessage('', sender);
     const textDiv = messageDiv.querySelector('.message-text');
     
@@ -342,7 +343,7 @@ async function addMessageWithTyping(text, sender, sources = null, metadata = nul
     // Add technical sources after typing complete
     if (sources && sources.length > 0) {
         const contentDiv = messageDiv.querySelector('.message-content');
-        const sourcesDiv = createTechnicalSources(sources, metadata);
+        const sourcesDiv = createTechnicalSources(sources, metadata, elapsedTime);
         contentDiv.appendChild(sourcesDiv);
     }
 }
@@ -350,7 +351,7 @@ async function addMessageWithTyping(text, sender, sources = null, metadata = nul
 /**
  * Create technical reference sources display
  */
-function createTechnicalSources(sources, metadata) {
+function createTechnicalSources(sources, metadata, elapsedTime = null) {
     const sourcesDiv = document.createElement('div');
     sourcesDiv.className = 'sources';
     
@@ -369,7 +370,15 @@ function createTechnicalSources(sources, metadata) {
     if (metadata) {
         const metaItem = document.createElement('div');
         metaItem.className = 'source-item';
-        metaItem.textContent = `System Confidence: ${(metadata.top_similarity * 100).toFixed(1)}% | Knowledge Base Coverage: ${metadata.relevant_chunks_used}/${metadata.total_chunks_searched} segments`;
+        let metaText = `System Confidence: ${(metadata.top_similarity * 100).toFixed(1)}% | Knowledge Base Coverage: ${metadata.relevant_chunks_used}/${metadata.total_chunks_searched} segments`;
+        
+        // Add elapsed time if available
+        if (elapsedTime) {
+            const timeFormatted = (elapsedTime / 1000).toFixed(2);
+            metaText += ` | Processing Time: ${timeFormatted}s`;
+        }
+        
+        metaItem.textContent = metaText;
         sourcesDiv.appendChild(metaItem);
     }
     
@@ -466,6 +475,136 @@ document.addEventListener('drop', (e) => e.preventDefault());
 // ========== DOCUMENT MANAGER FUNCTIONALITY ==========
 
 let documentManagerInitialized = false;
+let isUsingGitHubDocuments = false;
+
+/**
+ * Check document source and update UI accordingly
+ */
+async function checkDocumentSource() {
+    try {
+        const result = await window.electronAPI.getDocumentSource();
+        
+        if (result.success) {
+            isUsingGitHubDocuments = result.isUsingGitHub;
+            
+            // Update sidebar header with source information
+            const sidebarHeader = document.querySelector('.sidebar-header h3');
+            if (isUsingGitHubDocuments) {
+                sidebarHeader.innerHTML = 'Document Manager<br><small style="font-size: 10px; color: #00ff88;">📡 GitHub Repository</small>';
+                
+                // Disable document management functions
+                disableDocumentManager();
+                
+                // Add GitHub refresh button
+                addGitHubRefreshButton();
+                
+                logSystemEvent('Using GitHub documents - document manager disabled');
+            } else {
+                sidebarHeader.innerHTML = 'Document Manager<br><small style="font-size: 10px; color: #ffaa00;">💾 Local Documents</small>';
+                logSystemEvent('Using local documents - document manager enabled');
+            }
+            
+            // Update status bar
+            updateDocumentSourceStatus(result.source);
+        }
+    } catch (error) {
+        console.error('Error checking document source:', error);
+    }
+}
+
+/**
+ * Disable document manager controls when using GitHub
+ */
+function disableDocumentManager() {
+    const addDocBtn = document.getElementById('addDocBtn');
+    const openFolderBtn = document.getElementById('openFolderBtn');
+    
+    if (addDocBtn) {
+        addDocBtn.disabled = true;
+        addDocBtn.innerHTML = '<div class="btn-icon add"></div><span>GitHub Managed</span>';
+        addDocBtn.title = 'Documents are automatically synced from GitHub repository';
+    }
+    
+    if (openFolderBtn) {
+        openFolderBtn.disabled = true;
+        openFolderBtn.innerHTML = '<div class="btn-icon folder"></div><span>View on GitHub</span>';
+        openFolderBtn.title = 'Documents are managed on GitHub repository';
+    }
+    
+    // Hide remove buttons from document list
+    const style = document.createElement('style');
+    style.textContent = '.doc-remove { display: none !important; }';
+    document.head.appendChild(style);
+}
+
+/**
+ * Add GitHub refresh button
+ */
+function addGitHubRefreshButton() {
+    const docActions = document.querySelector('.doc-actions');
+    
+    // Check if button already exists
+    if (document.getElementById('githubRefreshBtn')) return;
+    
+    const refreshBtn = document.createElement('button');
+    refreshBtn.className = 'action-btn success';
+    refreshBtn.id = 'githubRefreshBtn';
+    refreshBtn.innerHTML = '<div class="btn-icon refresh"></div><span>Sync GitHub</span>';
+    refreshBtn.title = 'Refresh documents from GitHub repository';
+    
+    refreshBtn.addEventListener('click', handleGitHubRefresh);
+    
+    // Insert after reindex button
+    const reindexBtn = document.getElementById('reindexBtn');
+    reindexBtn.parentNode.insertBefore(refreshBtn, reindexBtn.nextSibling);
+}
+
+/**
+ * Handle GitHub refresh
+ */
+async function handleGitHubRefresh() {
+    const refreshBtn = document.getElementById('githubRefreshBtn');
+    const originalHTML = refreshBtn.innerHTML;
+    
+    refreshBtn.disabled = true;
+    refreshBtn.innerHTML = '<div class="btn-icon refresh"></div><span>Syncing...</span>';
+    
+    try {
+        logSystemEvent('Syncing documents from GitHub...');
+        const result = await window.electronAPI.refreshGitHubDocuments();
+        
+        if (result.success) {
+            await loadDocumentsList();
+            showSystemMessage('Documents synchronized from GitHub successfully!');
+            logSystemEvent('GitHub document sync completed');
+            
+            if (result.requiresReindex) {
+                showSystemMessage('Document index will be rebuilt automatically.');
+            }
+        } else {
+            showSystemMessage('Failed to sync from GitHub: ' + result.message);
+        }
+    } catch (error) {
+        console.error('Error syncing GitHub documents:', error);
+        showSystemMessage('Error syncing GitHub documents: ' + error.message);
+    } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = originalHTML;
+    }
+}
+
+/**
+ * Update document source status in the status bar
+ */
+function updateDocumentSourceStatus(source) {
+    const docIcon = document.querySelector('.status-item .status-icon');
+    if (docIcon && docIcon.textContent === 'DOC') {
+        const docSourceSpan = docIcon.nextElementSibling.nextElementSibling;
+        if (docSourceSpan) {
+            docSourceSpan.title = `Document Source: ${source}`;
+        }
+    }
+}
 
 /**
  * Initialize document manager functionality
@@ -474,6 +613,9 @@ async function initializeDocumentManager() {
     if (documentManagerInitialized) return;
     
     logSystemEvent('Initializing document manager...');
+    
+    // First check document source
+    await checkDocumentSource();
     
     // Setup sidebar toggle
     const sidebarToggle = document.getElementById('sidebarToggle');
@@ -590,11 +732,13 @@ async function loadDocumentsList() {
     const docItems = document.getElementById('docItems');
     const docCount = document.getElementById('docCount');
     const chunkCount = document.getElementById('chunkCount');
+    const documentCount = document.getElementById('documentCount'); // Bottom status bar
     
     // Show loading state
     docItems.innerHTML = '<div class="loading-indicator">Loading documents...</div>';
     docCount.textContent = 'Loading...';
     chunkCount.textContent = 'Loading...';
+    documentCount.textContent = 'Loading...';
     
     try {
         const result = await window.electronAPI.getDocuments();
@@ -606,6 +750,10 @@ async function loadDocumentsList() {
             docCount.textContent = result.documents.length;
             chunkCount.textContent = result.totalChunks || 'N/A';
             
+            // Update bottom status bar
+            const docText = result.documents.length === 1 ? 'document' : 'documents';
+            documentCount.textContent = `${result.documents.length} ${docText}`;
+            
             logSystemEvent(`Loaded ${result.documents.length} documents`);
         } else {
             throw new Error(result.error || 'Failed to load documents');
@@ -615,6 +763,7 @@ async function loadDocumentsList() {
         docItems.innerHTML = '<div class="error-indicator">Error loading documents</div>';
         docCount.textContent = 'Error';
         chunkCount.textContent = 'Error';
+        documentCount.textContent = '0 documents';
     }
 }
 
@@ -659,7 +808,7 @@ async function removeDocument(filename) {
         const result = await window.electronAPI.removeDocument(filename);
         
         if (result.success) {
-            await loadDocumentsList();
+            await loadDocumentsList(); // This will now update both sidebar and status bar
             showSystemMessage(`Document "${filename}" removed successfully.`);
             logSystemEvent(`Successfully removed: ${filename}`);
         } else {

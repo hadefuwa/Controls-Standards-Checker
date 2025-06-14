@@ -939,6 +939,18 @@ code {
     box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
 }
 
+.action-btn.success {
+    background: #16a34a;
+    color: #ffffff;
+    border: 1px solid #15803d;
+}
+
+.action-btn.success:hover {
+    background: #15803d;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3);
+}
+
 .action-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;

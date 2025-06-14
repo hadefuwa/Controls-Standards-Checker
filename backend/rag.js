@@ -131,6 +131,7 @@ function getDiverseChunks(sortedChunks, maxChunks) {
  * @returns {Promise<Object>} - Object containing answer, sources, and metadata
  */
 async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'qwen2:0.5b', signal = null) {
+    const startTime = Date.now();
     console.log('=== Starting RAG Process ===');
     console.log(`📝 User Query: "${userQuery}"`);
     console.log(`🤖 Selected Model: ${selectedModel}`);
@@ -196,12 +197,16 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'qw
         const aiResponse = await generateResponse(modelToUse, messages, signal);
         console.log('✅ Text response generated successfully');
         
-        // Step 6: Prepare result object
+        // Step 6: Calculate elapsed time and prepare result object
+        const endTime = Date.now();
+        const elapsedTime = endTime - startTime;
+        
         const result = {
             answer: aiResponse,
             query: userQuery,
             hasImage: !!imageBase64,
             modelUsed: modelToUse,
+            elapsedTime: elapsedTime,
             sources: relevantChunks.map(chunk => ({
                 id: chunk.id,
                 source: chunk.metadata.source,
@@ -213,11 +218,13 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'qw
                 relevant_chunks_used: relevantChunks.length,
                 top_similarity: relevantChunks[0]?.similarity || 0,
                 embedding_model: EMBEDDING_MODEL,
-                generation_model: modelToUse
+                generation_model: modelToUse,
+                elapsed_time_ms: elapsedTime,
+                elapsed_time_formatted: `${(elapsedTime / 1000).toFixed(2)}s`
             }
         };
         
-        console.log('🎉 RAG process completed successfully');
+        console.log(`🎉 RAG process completed successfully in ${(elapsedTime / 1000).toFixed(2)}s`);
         return result;
         
     } catch (error) {
