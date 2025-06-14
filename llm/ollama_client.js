@@ -73,9 +73,10 @@ async function getEmbedding(text) {
  * Generate text response using Ollama chat API
  * @param {string} model - The model to use for generation (e.g., 'phi3:mini')
  * @param {Array} messages - Array of message objects with role and content
+ * @param {AbortSignal} signal - Optional abort signal for cancellation
  * @returns {Promise<string>} - The generated response text
  */
-async function generateResponse(model, messages) {
+async function generateResponse(model, messages, signal = null) {
     // Validate inputs
     if (!model || typeof model !== 'string') {
         throw new Error('Model parameter is required and must be a string');
@@ -102,13 +103,14 @@ async function generateResponse(model, messages) {
         console.log(`Generating response using model: ${model}`);
         console.log(`Messages: ${messages.length} message(s)`);
         
-        // Send request to Ollama chat API
+        // Send request to Ollama chat API with abort signal
         const response = await fetch('http://127.0.0.1:11434/api/chat', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(requestBody)
+            body: JSON.stringify(requestBody),
+            signal: signal  // Pass the abort signal to fetch
         });
 
         // Check if the request was successful
@@ -128,6 +130,11 @@ async function generateResponse(model, messages) {
         return data.message.content;
 
     } catch (error) {
+        // Handle abort error specifically
+        if (error.name === 'AbortError') {
+            throw new Error('Request was canceled by user');
+        }
+        
         // Handle different types of errors
         if (error.code === 'ECONNREFUSED') {
             throw new Error('Cannot connect to Ollama. Make sure Ollama is running on 127.0.0.1:11434');

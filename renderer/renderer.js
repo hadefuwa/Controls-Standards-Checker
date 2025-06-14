@@ -14,6 +14,7 @@ const questionInput = document.getElementById('questionInput');
 const sendButton = document.getElementById('sendButton');
 const sendButtonText = document.getElementById('sendButtonText');
 const sendButtonSpinner = document.getElementById('sendButtonSpinner');
+const stopButton = document.getElementById('stopButton');
 const statusText = document.getElementById('statusText');
 const statusIndicator = document.getElementById('statusIndicator');
 const status = document.getElementById('status');
@@ -21,6 +22,7 @@ const quickButtons = document.querySelectorAll('.quick-btn');
 
 // System state management
 let isProcessing = false;
+let currentRequest = null; // Track current request to allow cancellation
 let messageHistory = [];
 let systemStartTime = new Date();
 let currentImage = null; // Store current pasted image
@@ -48,6 +50,9 @@ document.addEventListener('DOMContentLoaded', () => {
 function setupEventListeners() {
     // Send button functionality
     sendButton.addEventListener('click', handleSendMessage);
+    
+    // Stop button functionality
+    stopButton.addEventListener('click', handleStopMessage);
     
     // Input field shortcuts (Shift+Enter for new line, Enter to send)
     questionInput.addEventListener('keydown', (e) => {
@@ -156,12 +161,16 @@ async function handleSendMessage() {
         return;
     }
     
+    // Get selected model
+    const selectedModel = document.getElementById('modelSelect').value;
+    
     // Log user interaction
     messageHistory.push({ 
         type: 'user', 
         content: question, 
         timestamp: new Date(),
-        sessionTime: (new Date() - systemStartTime) / 1000
+        sessionTime: (new Date() - systemStartTime) / 1000,
+        modelUsed: selectedModel
     });
     
     // Clear input and set processing state
@@ -175,45 +184,56 @@ async function handleSendMessage() {
     // Update system status
     updateSystemStatus('Processing Query...', 'processing');
     
-                    try {
-            logSystemEvent('Processing user query: ' + question.substring(0, 50) + '...');
-            if (currentImage) {
-                updateSystemStatus('Analyzing Image...', 'processing');
-            }
-            const result = await window.electronAPI.askQuestion(question, currentImage);
+    try {
+        logSystemEvent('Processing user query with ' + selectedModel + ': ' + question.substring(0, 50) + '...');
+        if (currentImage) {
+            updateSystemStatus('Analyzing Image...', 'processing');
+        }
+        
+        // Create a cancellable request
+        currentRequest = window.electronAPI.askQuestion(question, currentImage, selectedModel);
+        const result = await currentRequest;
+        
+        if (result.success) {
+            // Log successful response
+            messageHistory.push({
+                type: 'assistant',
+                content: result.answer,
+                sources: result.sources,
+                metadata: result.metadata,
+                hasImage: result.hasImage,
+                modelUsed: result.modelUsed,
+                timestamp: new Date(),
+                sessionTime: (new Date() - systemStartTime) / 1000
+            });
             
-            if (result.success) {
-                // Log successful response
-                messageHistory.push({
-                    type: 'assistant',
-                    content: result.answer,
-                    sources: result.sources,
-                    metadata: result.metadata,
-                    hasImage: result.hasImage,
-                    modelUsed: result.modelUsed,
-                    timestamp: new Date(),
-                    sessionTime: (new Date() - systemStartTime) / 1000
-                });
-                
-                // Display AI response with typing animation
-                await addMessageWithTyping(result.answer, 'assistant', result.sources, result.metadata);
-                updateSystemStatus('System Ready', 'ready');
-                logSystemEvent('Query processed successfully using ' + result.modelUsed);
+            // Display AI response with typing animation
+            await addMessageWithTyping(result.answer, 'assistant', result.sources, result.metadata);
+            updateSystemStatus('System Ready', 'ready');
+            logSystemEvent('Query processed successfully using ' + result.modelUsed);
+        } else {
+            // Check if the request was canceled
+            if (result.canceled) {
+                await addMessageWithTyping('Request was canceled by user.', 'assistant');
+                updateSystemStatus('Request Canceled', 'ready');
+                logSystemEvent('Query was canceled by user');
             } else {
-            // Handle processing errors
-            const errorMessage = `System Error: Unable to process query.\n\nError Details: ${result.error}\n\nRequired System Components:\n• Ollama service running\n• Phi3:mini model installed\n• Document embeddings configured`;
-            await addMessageWithTyping(errorMessage, 'assistant');
-            updateSystemStatus('Processing Error', 'error');
-            logSystemEvent('Query processing failed: ' + result.error);
+                // Handle processing errors
+                const errorMessage = `System Error: Unable to process query.\n\nError Details: ${result.error}\n\nRequired System Components:\n• Ollama service running\n• ${selectedModel} model installed\n• Document embeddings configured`;
+                await addMessageWithTyping(errorMessage, 'assistant');
+                updateSystemStatus('Processing Error', 'error');
+                logSystemEvent('Query processing failed: ' + result.error);
+            }
         }
         
     } catch (error) {
         logSystemEvent('System error: ' + error.message);
-        const errorMessage = `Critical System Error: Backend communication failure.\n\nTroubleshooting Steps:\n• Verify Ollama service status\n• Check model availability\n• Validate system configuration\n\nTechnical Details: ${error.message}`;
+        const errorMessage = `Critical System Error: Backend communication failure.\n\nTroubleshooting Steps:\n• Verify Ollama service status\n• Check ${selectedModel} model availability\n• Validate system configuration\n\nTechnical Details: ${error.message}`;
         await addMessageWithTyping(errorMessage, 'assistant');
         updateSystemStatus('System Failure', 'error');
     } finally {
         setProcessingState(false);
+        currentRequest = null; // Clear current request
         clearImagePreview(); // Clear image after sending
         questionInput.focus();
     }
@@ -230,10 +250,12 @@ function setProcessingState(processing) {
     if (processing) {
         sendButtonText.classList.add('hidden');
         sendButtonSpinner.classList.remove('hidden');
+        stopButton.classList.remove('hidden'); // Show stop button
         questionInput.style.opacity = '0.5';
     } else {
         sendButtonText.classList.remove('hidden');
         sendButtonSpinner.classList.add('hidden');
+        stopButton.classList.add('hidden'); // Hide stop button
         questionInput.style.opacity = '1';
     }
     
@@ -575,7 +597,7 @@ async function loadDocumentsList() {
     chunkCount.textContent = 'Loading...';
     
     try {
-        const result = await window.electronAPI.getDocumentsList();
+        const result = await window.electronAPI.getDocuments();
         
         if (result.success) {
             displayDocumentsList(result.documents);
@@ -736,4 +758,35 @@ if (typeof module !== 'undefined' && module.exports) {
         initializeDocumentManager,
         loadDocumentsList
     };
+}
+
+/**
+ * Handle stopping/canceling the current AI request
+ */
+async function handleStopMessage() {
+    if (!isProcessing || !currentRequest) {
+        return;
+    }
+    
+    try {
+        logSystemEvent('User requested to stop current query');
+        
+        // Cancel the current request through IPC
+        await window.electronAPI.stopCurrentRequest();
+        
+        // Show cancellation message
+        await addMessageWithTyping('Request canceled by user.', 'assistant');
+        
+        updateSystemStatus('Request Canceled', 'ready');
+        logSystemEvent('Current query successfully canceled');
+        
+    } catch (error) {
+        logSystemEvent('Error stopping request: ' + error.message);
+        await addMessageWithTyping('Error canceling request: ' + error.message, 'assistant');
+        updateSystemStatus('Cancel Error', 'error');
+    } finally {
+        setProcessingState(false);
+        currentRequest = null;
+        questionInput.focus();
+    }
 } 

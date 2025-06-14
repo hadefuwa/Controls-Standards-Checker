@@ -1,18 +1,25 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Expose secure API methods to the renderer process
-// This connects the frontend to the RAG backend
+// Expose protected methods that allow the renderer process to use
+// the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Ask a question using the RAG backend (with optional image)
-  askQuestion: (question, imageBase64 = null) => ipcRenderer.invoke('ask-question', question, imageBase64),
+  // Ask a question to the backend
+  askQuestion: (question, imageBase64 = null, selectedModel = 'qwen2:0.5b') => {
+    return ipcRenderer.invoke('ask-question', question, imageBase64, selectedModel);
+  },
   
-  // Test if the backend is working
+  // Test backend connection
   testBackend: () => ipcRenderer.invoke('test-backend'),
   
-  // Document management
-  getDocumentsList: () => ipcRenderer.invoke('get-documents-list'),
-  uploadDocument: (document) => ipcRenderer.invoke('upload-document', document),
-  removeDocument: (filename) => ipcRenderer.invoke('remove-document', filename),
+  // Stop current request
+  stopCurrentRequest: () => ipcRenderer.invoke('stop-current-request'),
+  
+  // Get documents list
+  getDocuments: () => ipcRenderer.invoke('get-documents'),
+  
+  // Reindex documents
   reindexDocuments: () => ipcRenderer.invoke('reindex-documents'),
+  
+  // Open user documents folder
   openDocumentsFolder: () => ipcRenderer.invoke('open-documents-folder')
 }); 

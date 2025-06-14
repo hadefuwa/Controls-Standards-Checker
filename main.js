@@ -13,6 +13,9 @@ const { answerQuestion, loadDocuments, setEmbeddingsPath } = require('./backend/
 // Keep a global reference of the window object
 let mainWindow;
 
+// Global variable to track current requests
+let currentRequestController = null;
+
 function createWindow() {
   // Create the browser window
   mainWindow = new BrowserWindow({
@@ -118,13 +121,18 @@ function ensureDirectoriesExist() {
 }
 
 // IPC Handlers - Connect frontend to backend
-ipcMain.handle('ask-question', async (event, question, imageBase64 = null) => {
+ipcMain.handle('ask-question', async (event, question, imageBase64 = null, selectedModel = 'qwen2:0.5b') => {
   try {
     console.log('📝 Main process received question:', question);
+    console.log('🤖 Using model:', selectedModel);
     if (imageBase64) {
       console.log('🖼️ Main process received image data');
     }
-    const result = await answerQuestion(question, imageBase64);
+    
+    // Create an AbortController for this request
+    currentRequestController = new AbortController();
+    
+    const result = await answerQuestion(question, imageBase64, selectedModel, currentRequestController.signal);
     
     return {
       success: true,
@@ -136,6 +144,46 @@ ipcMain.handle('ask-question', async (event, question, imageBase64 = null) => {
     };
   } catch (error) {
     console.error('❌ Main process error:', error.message);
+    
+    // Check if error is due to abort
+    if (error.message.includes('canceled by user')) {
+      return {
+        success: false,
+        error: 'Request was canceled by user',
+        canceled: true
+      };
+    }
+    
+    return {
+      success: false,
+      error: error.message
+    };
+  } finally {
+    currentRequestController = null;
+  }
+});
+
+// IPC Handler: Stop current request
+ipcMain.handle('stop-current-request', async (event) => {
+  try {
+    console.log('🛑 Stop request received');
+    
+    if (currentRequestController) {
+      currentRequestController.abort();
+      console.log('✅ Current request stopped');
+      return {
+        success: true,
+        message: 'Request stopped successfully'
+      };
+    } else {
+      console.log('⚠️ No active request to stop');
+      return {
+        success: false,
+        message: 'No active request to stop'
+      };
+    }
+  } catch (error) {
+    console.error('❌ Error stopping request:', error.message);
     return {
       success: false,
       error: error.message
@@ -477,6 +525,29 @@ ipcMain.handle('open-documents-folder', async (event) => {
     
   } catch (error) {
     console.error('❌ Error opening documents folder:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+ipcMain.handle('get-documents', async (event) => {
+  try {
+    // For now, return the processed documents info
+    // This should be expanded to show actual document files
+    const { getDocumentCount } = require('./backend/rag');
+    
+    // Get document statistics
+    const stats = await getDocumentCount();
+    
+    return {
+      success: true,
+      documents: stats.documents || [],
+      totalChunks: stats.totalChunks || 0
+    };
+  } catch (error) {
+    console.error('❌ Error getting documents:', error.message);
     return {
       success: false,
       error: error.message

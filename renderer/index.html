@@ -153,6 +153,9 @@
                                     <div class="spinner-icon"></div>
                                 </div>
                             </button>
+                            <button id="stopButton" class="stop-button hidden">
+                                <div class="stop-icon"></div>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -185,6 +188,27 @@
 
     <!-- Hidden file input for document uploads -->
     <input type="file" id="fileInput" class="file-input" multiple accept=".txt,.pdf,.doc,.docx,.md">
+
+    <div class="status-bar">
+        <div class="status-item">
+            <span class="status-icon">SYS</span>
+            <span id="systemStatus">System Ready</span>
+        </div>
+        <div class="status-item">
+            <span class="status-icon">DOC</span>
+            <span id="documentCount">0 documents</span>
+        </div>
+        <div class="status-item">
+            <span class="status-icon">AI</span>
+            <label for="modelSelect">Model:</label>
+            <select id="modelSelect" class="model-dropdown">
+                <option value="qwen2:0.5b">qwen2:0.5b (Ultra Fast)</option>
+                <option value="gemma:2b">gemma:2b (Balanced)</option>
+                <option value="phi3:mini">phi3:mini (Quality)</option>
+                <option value="llama3:latest">llama3:latest (Premium)</option>
+            </select>
+        </div>
+    </div>
 
     <script src="renderer.js"></script>
 </body>

@@ -11,8 +11,6 @@ const EMBEDDING_MODEL = 'all-minilm';  // Model used for embeddings
 const TEXT_MODEL = 'qwen2:0.5b';  // Ultra-fast, smallest model (352MB)
 const VISION_MODEL = 'llava:13b';  // Vision model for image analysis
 const TOP_K_CHUNKS = 2;  // Reduce to 2 chunks for balance
-const VISION_TIMEOUT = 60000;  // 60 second timeout for vision model
-const TEXT_TIMEOUT = 20000;    // Reduce back to 20 seconds - should be fast now
 
 // Maximum context length to prevent model overload
 const MAX_CONTEXT_LENGTH = 2500;  // Sweet spot - 2500 characters
@@ -125,38 +123,17 @@ function getDiverseChunks(sortedChunks, maxChunks) {
 }
 
 /**
- * Generate response with timeout to prevent hanging
- * @param {string} model - Model to use
- * @param {Array} messages - Messages array
- * @param {number} timeout - Timeout in milliseconds
- * @returns {Promise<string>} - Generated response
- */
-async function generateResponseWithTimeout(model, messages, timeout = VISION_TIMEOUT) {
-    return new Promise(async (resolve, reject) => {
-        const timeoutId = setTimeout(() => {
-            reject(new Error(`Model ${model} timed out after ${timeout/1000} seconds`));
-        }, timeout);
-        
-        try {
-            const response = await generateResponse(model, messages);
-            clearTimeout(timeoutId);
-            resolve(response);
-        } catch (error) {
-            clearTimeout(timeoutId);
-            reject(error);
-        }
-    });
-}
-
-/**
  * Answer a question with optional image input using retrieval and generation
  * @param {string} userQuery - The user's question
  * @param {string} imageBase64 - Optional base64 encoded image
+ * @param {string} selectedModel - The model to use for generation
+ * @param {AbortSignal} signal - Optional abort signal for cancellation
  * @returns {Promise<Object>} - Object containing answer, sources, and metadata
  */
-async function answerQuestion(userQuery, imageBase64 = null) {
+async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'qwen2:0.5b', signal = null) {
     console.log('=== Starting RAG Process ===');
     console.log(`📝 User Query: "${userQuery}"`);
+    console.log(`🤖 Selected Model: ${selectedModel}`);
     
     try {
         // Step 1: Load documents
@@ -200,8 +177,8 @@ async function answerQuestion(userQuery, imageBase64 = null) {
         
         console.log(`✅ Context constructed (${context.length} characters)`);
         
-        // Step 5: Always use text-only model for maximum speed and reliability
-        const modelToUse = TEXT_MODEL;
+        // Step 5: Use the selected model
+        const modelToUse = selectedModel;
         
         // Create simple, concise messages
         const messages = [
@@ -215,8 +192,8 @@ async function answerQuestion(userQuery, imageBase64 = null) {
             }
         ];
         
-        console.log('🤖 Generating text response...');
-        const aiResponse = await generateResponseWithTimeout(TEXT_MODEL, messages, TEXT_TIMEOUT);
+        console.log(`🤖 Generating text response using ${modelToUse}...`);
+        const aiResponse = await generateResponse(modelToUse, messages, signal);
         console.log('✅ Text response generated successfully');
         
         // Step 6: Prepare result object
@@ -249,6 +226,49 @@ async function answerQuestion(userQuery, imageBase64 = null) {
     }
 }
 
+/**
+ * Get document count and statistics
+ * @returns {Promise<Object>} - Document statistics
+ */
+async function getDocumentCount() {
+    try {
+        const allDocumentChunks = await loadDocuments();
+        
+        // Group chunks by source document
+        const documentStats = {};
+        allDocumentChunks.forEach(chunk => {
+            const source = chunk.metadata.source;
+            if (!documentStats[source]) {
+                documentStats[source] = {
+                    name: source,
+                    chunks: 0,
+                    size: 0
+                };
+            }
+            documentStats[source].chunks++;
+            documentStats[source].size += chunk.document.length;
+        });
+        
+        const documents = Object.values(documentStats);
+        
+        return {
+            success: true,
+            documents: documents,
+            totalChunks: allDocumentChunks.length,
+            totalDocuments: documents.length
+        };
+    } catch (error) {
+        console.error('❌ Error getting document count:', error.message);
+        return {
+            success: false,
+            documents: [],
+            totalChunks: 0,
+            totalDocuments: 0,
+            error: error.message
+        };
+    }
+}
+
 // Placeholder for searchOnly to prevent crash
 async function searchOnly() {
     return [];
@@ -259,5 +279,6 @@ module.exports = {
     searchOnly,
     loadDocuments,
     cosineSimilarity,
-    setEmbeddingsPath
+    setEmbeddingsPath,
+    getDocumentCount
 };
