@@ -432,6 +432,7 @@ ipcMain.handle('ask-question', async (event, question, imageBase64 = null, selec
       answer: result.answer,
       sources: result.sources,
       metadata: result.metadata,
+      systemStats: result.systemStats,
       hasImage: result.hasImage,
       modelUsed: result.modelUsed,
       elapsedTime: result.elapsedTime

@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const { getEmbedding, generateResponse } = require('../llm/ollama_client');
+const systemMonitor = require('./system_monitor');
 
 // Configuration
 let EMBEDDINGS_FILE = path.join(__dirname, 'embedding_db', 'embeddings.json');  // Default path, can be overridden
@@ -136,6 +137,9 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'qw
     console.log(`📝 User Query: "${userQuery}"`);
     console.log(`🤖 Selected Model: ${selectedModel}`);
     
+    // Start system monitoring
+    systemMonitor.startMonitoring();
+    
     try {
         // Step 1: Load documents
         const allDocumentChunks = await loadDocuments();
@@ -236,6 +240,9 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'qw
         const endTime = Date.now();
         const elapsedTime = endTime - startTime;
         
+        // Stop monitoring and get system stats
+        const systemStats = systemMonitor.stopMonitoring();
+        
         const result = {
             answer: aiResponse,
             query: userQuery,
@@ -248,6 +255,7 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'qw
                 similarity: chunk.similarity,
                 content_preview: chunk.document.substring(0, 150) + '...'
             })),
+            systemStats: systemStats,
             metadata: {
                 total_chunks_searched: allDocumentChunks.length,
                 relevant_chunks_used: relevantChunks.length,
@@ -263,6 +271,8 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'qw
         return result;
         
     } catch (error) {
+        // Stop monitoring even in error case
+        systemMonitor.stopMonitoring();
         console.error('❌ RAG process failed:', error.message);
         throw error;
     }

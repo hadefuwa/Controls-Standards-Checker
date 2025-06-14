@@ -414,6 +414,16 @@ body {
     line-height: 1.4;
 }
 
+.performance-stats {
+    color: #00ff88 !important;
+    font-weight: 600;
+    background: rgba(0, 255, 136, 0.1);
+    padding: 8px 12px;
+    border-radius: 4px;
+    border-left: 3px solid #00ff88;
+    margin-top: 8px;
+}
+
 /* Input Area */
 .input-area {
     padding: 24px;

@@ -209,7 +209,7 @@ async function handleSendMessage() {
             });
             
             // Display AI response with typing animation
-            await addMessageWithTyping(result.answer, 'assistant', result.sources, result.metadata, result.elapsedTime);
+            await addMessageWithTyping(result.answer, 'assistant', result.sources, result.metadata, result.elapsedTime, result.systemStats);
             updateSystemStatus('System Ready', 'ready');
             logSystemEvent('Query processed successfully using ' + result.modelUsed);
         } else {
@@ -269,7 +269,7 @@ function setProcessingState(processing) {
 /**
  * Add message to chat interface
  */
-function addMessage(text, sender, sources = null, metadata = null, elapsedTime = null) {
+function addMessage(text, sender, sources = null, metadata = null, elapsedTime = null, systemStats = null) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${sender}-message`;
     
@@ -322,7 +322,7 @@ function addMessage(text, sender, sources = null, metadata = null, elapsedTime =
 /**
  * Add message with professional typing effect
  */
-async function addMessageWithTyping(text, sender, sources = null, metadata = null, elapsedTime = null) {
+async function addMessageWithTyping(text, sender, sources = null, metadata = null, elapsedTime = null, systemStats = null) {
     const messageDiv = addMessage('', sender);
     const textDiv = messageDiv.querySelector('.message-text');
     
@@ -343,7 +343,7 @@ async function addMessageWithTyping(text, sender, sources = null, metadata = nul
     // Add technical sources after typing complete
     if (sources && sources.length > 0) {
         const contentDiv = messageDiv.querySelector('.message-content');
-        const sourcesDiv = createTechnicalSources(sources, metadata, elapsedTime);
+        const sourcesDiv = createTechnicalSources(sources, metadata, elapsedTime, systemStats);
         contentDiv.appendChild(sourcesDiv);
     }
 }
@@ -351,7 +351,7 @@ async function addMessageWithTyping(text, sender, sources = null, metadata = nul
 /**
  * Create technical reference sources display
  */
-function createTechnicalSources(sources, metadata, elapsedTime = null) {
+function createTechnicalSources(sources, metadata, elapsedTime = null, systemStats = null) {
     const sourcesDiv = document.createElement('div');
     sourcesDiv.className = 'sources';
     
@@ -380,6 +380,24 @@ function createTechnicalSources(sources, metadata, elapsedTime = null) {
         
         metaItem.textContent = metaText;
         sourcesDiv.appendChild(metaItem);
+    }
+    
+    // Add system performance statistics
+    if (systemStats) {
+        const perfItem = document.createElement('div');
+        perfItem.className = 'source-item performance-stats';
+        
+        let perfText = `Performance: CPU ${systemStats.cpu.average.toFixed(1)}% avg (${systemStats.cpu.max.toFixed(1)}% peak)`;
+        perfText += ` | Memory ${systemStats.memory.average.toFixed(1)}% avg`;
+        
+        if (systemStats.gpu) {
+            perfText += ` | GPU ${systemStats.gpu.average.toFixed(1)}% avg (${systemStats.gpu.max.toFixed(1)}% peak)`;
+        } else {
+            perfText += ` | GPU: Not detected`;
+        }
+        
+        perfItem.textContent = perfText;
+        sourcesDiv.appendChild(perfItem);
     }
     
     return sourcesDiv;
