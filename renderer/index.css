@@ -874,6 +874,18 @@ code {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
+.action-btn.info {
+    background: #0891b2;
+    color: #ffffff;
+    border: 1px solid #0e7490;
+}
+
+.action-btn.info:hover {
+    background: #0e7490;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(8, 145, 178, 0.3);
+}
+
 .action-btn.warning {
     background: #dc2626;
     color: #ffffff;
@@ -908,6 +920,7 @@ code {
 
 .btn-icon.add::after { content: "+"; }
 .btn-icon.refresh::after { content: "⟳"; }
+.btn-icon.folder::after { content: "📁"; }
 .btn-icon.reindex::after { content: "⚡"; }
 
 /* Document List */

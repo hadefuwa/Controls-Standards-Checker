@@ -13,5 +13,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getDocumentsList: () => ipcRenderer.invoke('get-documents-list'),
   uploadDocument: (document) => ipcRenderer.invoke('upload-document', document),
   removeDocument: (filename) => ipcRenderer.invoke('remove-document', filename),
-  reindexDocuments: () => ipcRenderer.invoke('reindex-documents')
+  reindexDocuments: () => ipcRenderer.invoke('reindex-documents'),
+  openDocumentsFolder: () => ipcRenderer.invoke('open-documents-folder')
 }); 

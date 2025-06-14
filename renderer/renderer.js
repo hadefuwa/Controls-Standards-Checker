@@ -478,6 +478,10 @@ async function initializeDocumentManager() {
     // Refresh documents list
     refreshDocsBtn.addEventListener('click', loadDocumentsList);
     
+    // Open documents folder
+    const openFolderBtn = document.getElementById('openFolderBtn');
+    openFolderBtn.addEventListener('click', handleOpenDocumentsFolder);
+    
     // Rebuild index
     reindexBtn.addEventListener('click', handleReindexDocuments);
     
@@ -647,6 +651,25 @@ async function removeDocument(filename) {
 
 // Make removeDocument globally accessible for onclick handlers
 window.removeDocument = removeDocument;
+
+/**
+ * Handle opening documents folder
+ */
+async function handleOpenDocumentsFolder() {
+    try {
+        logSystemEvent('Opening documents folder...');
+        const result = await window.electronAPI.openDocumentsFolder();
+        
+        if (result.success) {
+            logSystemEvent('Documents folder opened successfully');
+        } else {
+            throw new Error(result.error || 'Failed to open folder');
+        }
+    } catch (error) {
+        console.error('Error opening documents folder:', error);
+        showSystemMessage('Error opening documents folder: ' + error.message);
+    }
+}
 
 /**
  * Handle reindexing documents

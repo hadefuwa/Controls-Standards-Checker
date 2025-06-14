@@ -8,10 +8,14 @@ const { getEmbedding, generateResponse } = require('../llm/ollama_client');
 // Configuration
 let EMBEDDINGS_FILE = path.join(__dirname, 'embedding_db', 'embeddings.json');  // Default path, can be overridden
 const EMBEDDING_MODEL = 'all-minilm';  // Model used for embeddings
-const TEXT_MODEL = 'llama3.2:1b';  // Lightweight model for text-only queries
-const VISION_MODEL = 'llama3.2-vision';  // Vision model for image analysis
-const TOP_K_CHUNKS = 3;  // Number of relevant chunks to use for context
+const TEXT_MODEL = 'qwen2:0.5b';  // Ultra-fast, smallest model (352MB)
+const VISION_MODEL = 'llava:13b';  // Vision model for image analysis
+const TOP_K_CHUNKS = 2;  // Reduce to 2 chunks for balance
 const VISION_TIMEOUT = 60000;  // 60 second timeout for vision model
+const TEXT_TIMEOUT = 20000;    // Reduce back to 20 seconds - should be fast now
+
+// Maximum context length to prevent model overload
+const MAX_CONTEXT_LENGTH = 2500;  // Sweet spot - 2500 characters
 
 // In-memory cache for document embeddings
 let documentChunks = null;
@@ -84,6 +88,43 @@ function cosineSimilarity(vecA, vecB) {
 }
 
 /**
+ * Get diverse chunks from different documents to avoid over-relying on one source
+ * @param {Array} sortedChunks - Chunks sorted by similarity (highest first)
+ * @param {number} maxChunks - Maximum number of chunks to return
+ * @returns {Array} - Array of diverse chunks
+ */
+function getDiverseChunks(sortedChunks, maxChunks) {
+    const selectedChunks = [];
+    const sourceDocuments = new Set();
+    
+    // First pass: get best chunk from each unique document
+    for (const chunk of sortedChunks) {
+        if (selectedChunks.length >= maxChunks) break;
+        
+        const source = chunk.metadata?.source;
+        if (source && !sourceDocuments.has(source)) {
+            selectedChunks.push(chunk);
+            sourceDocuments.add(source);
+        }
+    }
+    
+    // Second pass: fill remaining slots with best remaining chunks
+    for (const chunk of sortedChunks) {
+        if (selectedChunks.length >= maxChunks) break;
+        
+        // Skip if we already selected this chunk
+        if (!selectedChunks.some(selected => selected.id === chunk.id)) {
+            selectedChunks.push(chunk);
+        }
+    }
+    
+    // Sort final selection by similarity for consistency
+    selectedChunks.sort((a, b) => b.similarity - a.similarity);
+    
+    return selectedChunks;
+}
+
+/**
  * Generate response with timeout to prevent hanging
  * @param {string} model - Model to use
  * @param {Array} messages - Messages array
@@ -124,7 +165,7 @@ async function answerQuestion(userQuery, imageBase64 = null) {
         // Step 2: Embed the user query
         console.log('🔍 Embedding user query...');
         const queryEmbedding = await getEmbedding(userQuery);
-        console.log(`✅ Query embedded (${queryEmbedding.length} dimensions)`);
+        console.log(`Query embedded (${queryEmbedding.length} dimensions)`);
         
         // Step 3: Perform semantic search
         console.log('🔎 Performing semantic search...');
@@ -136,84 +177,47 @@ async function answerQuestion(userQuery, imageBase64 = null) {
         // Sort by similarity (highest first)
         similarities.sort((a, b) => b.similarity - a.similarity);
         
-        // Get top K most relevant chunks
-        const relevantChunks = similarities.slice(0, TOP_K_CHUNKS);
-        console.log(`✅ Found ${relevantChunks.length} relevant chunks`);
+        // Get diverse chunks from different documents
+        const relevantChunks = getDiverseChunks(similarities, TOP_K_CHUNKS);
+        console.log(`✅ Found ${relevantChunks.length} relevant chunks from diverse sources`);
         
         // Log similarity scores for debugging
         relevantChunks.forEach((chunk, index) => {
             console.log(`   ${index + 1}. Similarity: ${(chunk.similarity * 100).toFixed(1)}% - ${chunk.id}`);
         });
         
-        // Step 4: Construct context from relevant chunks
+        // Step 4: Construct context from relevant chunks - LIMIT LENGTH
         console.log('📄 Constructing context...');
-        const context = relevantChunks
+        let context = relevantChunks
             .map((chunk, index) => `[Source ${index + 1}: ${chunk.metadata.source}]\n${chunk.document}`)
             .join('\n\n---\n\n');
         
+        // Truncate context if too long to prevent model overload
+        if (context.length > MAX_CONTEXT_LENGTH) {
+            context = context.substring(0, MAX_CONTEXT_LENGTH) + '... [truncated for performance]';
+            console.log(`⚠️ Context truncated to ${MAX_CONTEXT_LENGTH} characters for performance`);
+        }
+        
         console.log(`✅ Context constructed (${context.length} characters)`);
         
-        // Step 5: Choose model and prepare messages based on image presence
-        let modelToUse = TEXT_MODEL;
-        let aiResponse;
+        // Step 5: Always use text-only model for maximum speed and reliability
+        const modelToUse = TEXT_MODEL;
         
-        if (imageBase64) {
-            console.log('🖼️ Image provided - attempting vision analysis...');
-            modelToUse = VISION_MODEL;
-            
-            const messages = [
-                {
-                    role: 'system',
-                    content: 'You are an industrial automation expert. Analyze the provided image in the context of machinery safety and compliance. Answer questions based on both the image content and the provided documentation context. Be precise and cite which source sections support your answer.'
-                },
-                {
-                    role: 'user',
-                    content: `Context:\n${context}\n\nQuestion: ${userQuery}\n\nPlease analyze the provided image in the context of industrial automation safety and compliance.`,
-                    images: [imageBase64]
-                }
-            ];
-            
-            try {
-                console.log('🤖 Generating vision response with timeout...');
-                aiResponse = await generateResponseWithTimeout(VISION_MODEL, messages, VISION_TIMEOUT);
-                console.log('✅ Vision response generated successfully');
-            } catch (error) {
-                console.warn('⚠️ Vision model failed or timed out, falling back to text-only analysis:', error.message);
-                
-                // Fallback to text-only model
-                modelToUse = TEXT_MODEL;
-                const fallbackMessages = [
-                    {
-                        role: 'system',
-                        content: 'You are an industrial automation expert. The user provided an image, but image analysis is currently unavailable. Answer their question based on the provided documentation context and acknowledge that you cannot analyze the image at this time.'
-                    },
-                    {
-                        role: 'user',
-                        content: `Context:\n${context}\n\nQuestion: ${userQuery}\n\nNote: An image was provided but cannot be analyzed at this time.`
-                    }
-                ];
-                
-                console.log('🤖 Generating fallback text response...');
-                aiResponse = await generateResponse(TEXT_MODEL, fallbackMessages);
-                console.log('✅ Fallback response generated successfully');
+        // Create simple, concise messages
+        const messages = [
+            {
+                role: 'system',
+                content: 'You are an expert in European industrial safety directives and regulations. Answer questions about the Machinery Directive, Low Voltage Directive (LVD), EMC Directive, and related safety standards. Use the provided context to give accurate, specific answers. If the context doesn\'t contain enough information, say so clearly.'
+            },
+            {
+                role: 'user',
+                content: `Context: ${context}\n\nQuestion: ${userQuery}\n\nPlease provide a detailed answer based on the context.`
             }
-        } else {
-            // Text-only query
-            const messages = [
-                {
-                    role: 'system',
-                    content: 'You are an industrial automation expert. Answer questions based ONLY on the provided context from official documentation. If the answer is not clearly stated in the context, say "I cannot find a direct answer in the provided documentation." Be precise and cite which source sections support your answer.'
-                },
-                {
-                    role: 'user',
-                    content: `Context:\n${context}\n\nQuestion: ${userQuery}`
-                }
-            ];
-            
-            console.log('🤖 Generating text response...');
-            aiResponse = await generateResponse(TEXT_MODEL, messages);
-            console.log('✅ Text response generated successfully');
-        }
+        ];
+        
+        console.log('🤖 Generating text response...');
+        const aiResponse = await generateResponseWithTimeout(TEXT_MODEL, messages, TEXT_TIMEOUT);
+        console.log('✅ Text response generated successfully');
         
         // Step 6: Prepare result object
         const result = {
@@ -245,41 +249,15 @@ async function answerQuestion(userQuery, imageBase64 = null) {
     }
 }
 
-/**
- * Get similarity scores for a query without generating a response
- * Useful for debugging and testing search quality
- * @param {string} userQuery - The user's question
- * @param {number} topK - Number of top results to return
- * @returns {Promise<Array>} - Array of chunks with similarity scores
- */
-async function searchOnly(userQuery, topK = TOP_K_CHUNKS) {
-    console.log(`🔍 Search-only mode for: "${userQuery}"`);
-    
-    try {
-        const allDocumentChunks = await loadDocuments();
-        const queryEmbedding = await getEmbedding(userQuery);
-        
-        const similarities = allDocumentChunks.map(chunk => ({
-            id: chunk.id,
-            source: chunk.metadata.source,
-            similarity: cosineSimilarity(queryEmbedding, chunk.embedding),
-            content_preview: chunk.document.substring(0, 200) + '...'
-        }));
-        
-        similarities.sort((a, b) => b.similarity - a.similarity);
-        return similarities.slice(0, topK);
-        
-    } catch (error) {
-        console.error('❌ Search failed:', error.message);
-        throw error;
-    }
+// Placeholder for searchOnly to prevent crash
+async function searchOnly() {
+    return [];
 }
 
-// Export the main functions
 module.exports = {
     answerQuestion,
     searchOnly,
     loadDocuments,
     cosineSimilarity,
     setEmbeddingsPath
-}; 
+};
