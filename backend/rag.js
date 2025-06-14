@@ -196,7 +196,7 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'qw
                 {
                     role: 'user',
                     content: `Context: ${context}\n\nQuestion: ${userQuery}\n\nPlease analyze the provided image and answer the question based on both the image content and the context provided.`,
-                    images: [`data:image/jpeg;base64,${imageBase64}`]
+                    images: [imageBase64]
                 }
             ];
         } else if (imageBase64 && !isVisionModel) {

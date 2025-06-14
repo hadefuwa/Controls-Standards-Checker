@@ -56,15 +56,17 @@ body {
     margin: 0 auto;
 }
 
-/* Social Links Styling */
-.social-links {
+/* Footer YouTube Link Styling */
+.footer-youtube {
     display: flex;
+    justify-content: center;
     align-items: center;
-    gap: 12px;
-    margin-left: 20px;
+    padding: 12px 20px;
+    background: #1a1d23;
+    border-top: 1px solid #3a4149;
 }
 
-.youtube-link {
+.youtube-link-footer {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -80,13 +82,13 @@ body {
     white-space: nowrap;
 }
 
-.youtube-link:hover {
+.youtube-link-footer:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(255, 0, 0, 0.4);
     background: linear-gradient(135deg, #ff1a1a, #e60000);
 }
 
-.youtube-link:active {
+.youtube-link-footer:active {
     transform: translateY(0px);
 }
 
