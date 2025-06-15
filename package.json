@@ -1,6 +1,6 @@
 {
   "name": "industrial-automation-assistant",
-  "version": "2.4.1",
+  "version": "2.4.2",
   "description": "Industrial Automation AI Assistant Desktop Application - GPU Accelerated Performance",
   "main": "main.js",
   "scripts": {

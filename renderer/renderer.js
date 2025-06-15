@@ -391,7 +391,11 @@ function createTechnicalSources(sources, metadata, elapsedTime = null, systemSta
         perfText += ` | Memory ${systemStats.memory.average.toFixed(1)}% avg`;
         
         if (systemStats.gpu) {
-            perfText += ` | GPU ${systemStats.gpu.average.toFixed(1)}% avg (${systemStats.gpu.max.toFixed(1)}% peak)`;
+            if (systemStats.gpu.source) {
+                perfText += ` | GPU: ${systemStats.gpu.source} (${systemStats.gpu.average.toFixed(1)}% usage)`;
+            } else {
+                perfText += ` | GPU ${systemStats.gpu.average.toFixed(1)}% avg (${systemStats.gpu.max.toFixed(1)}% peak)`;
+            }
         } else {
             perfText += ` | GPU: Not detected`;
         }

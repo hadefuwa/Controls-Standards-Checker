@@ -722,7 +722,7 @@ async function processUserDocuments() {
   
   try {
     // Import required modules for processing
-    const { getEmbedding } = require('./llm/lm_studio_client');
+    const { getEmbedding } = require('./llm/lm_studio_client_cpu_fallback');
     
     // Configuration
     const CHUNK_SIZE = 200; // Approximate words per chunk (reduced for faster processing)
