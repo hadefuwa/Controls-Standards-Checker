@@ -131,7 +131,7 @@ function getDiverseChunks(sortedChunks, maxChunks) {
  * @param {AbortSignal} signal - Optional abort signal for cancellation
  * @returns {Promise<Object>} - Object containing answer, sources, and metadata
  */
-async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'qwen2:0.5b', signal = null) {
+async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'lm-studio-gpu', signal = null) {
     const startTime = Date.now();
     console.log('=== Starting RAG Process ===');
     console.log(`📝 User Query: "${userQuery}"`);

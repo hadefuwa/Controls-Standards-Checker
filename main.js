@@ -414,7 +414,7 @@ async function updateDocumentsFromGitHub() {
 }
 
 // IPC Handlers - Connect frontend to backend
-ipcMain.handle('ask-question', async (event, question, imageBase64 = null, selectedModel = 'qwen2:0.5b') => {
+ipcMain.handle('ask-question', async (event, question, imageBase64 = null, selectedModel = 'lm-studio-gpu') => {
   try {
     console.log('📝 Main process received question:', question);
     console.log('🤖 Using model:', selectedModel);

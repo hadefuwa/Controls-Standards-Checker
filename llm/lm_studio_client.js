@@ -90,9 +90,16 @@ async function generateResponse(model, messages, signal = null) {
         
         // Handle different types of errors
         if (error.code === 'ECONNREFUSED') {
-            throw new Error('Cannot connect to LM Studio. Make sure LM Studio is running with Local Server started on port 1234');
+            console.error('🔴 LM Studio is not running or not accessible on port 1234');
+            console.error('💡 Please make sure:');
+            console.error('   1. LM Studio is open');
+            console.error('   2. A model is loaded');
+            console.error('   3. Local Server is started');
+            console.error('   4. Server is running on port 1234');
+            throw new Error('🔴 LM Studio not available. Please start LM Studio with Local Server on port 1234');
         } else {
-            throw new Error(`Error generating response: ${error.message}`);
+            console.error('🔴 LM Studio error:', error.message);
+            throw new Error(`🔴 LM Studio error: ${error.message}`);
         }
     }
 }
