@@ -1,0 +1,49 @@
+🔧 SIMPLE SWITCH FROM OLLAMA TO LM STUDIO
+==========================================
+
+After you set up LM Studio, you need to make these SIMPLE changes to use it:
+
+📋 STEP 1: SETUP LM STUDIO (Do this first!)
+   - Run: setup_lm_studio.bat (follow the instructions)
+   - Download LM Studio from https://lmstudio.ai/
+   - Enable GPU acceleration (DirectML for AMD)
+   - Download phi-3-mini model
+   - Start the Local Server
+
+📋 STEP 2: CHANGE THESE LINES IN YOUR CODE
+
+   File: main.js (Line 724)
+   OLD: const { getEmbedding } = require('./llm/ollama_client');
+   NEW: const { getEmbedding } = require('./llm/lm_studio_client');
+
+   File: backend/rag.js (Line 5)  
+   OLD: const { getEmbedding, generateResponse } = require('../llm/ollama_client');
+   NEW: const { getEmbedding, generateResponse } = require('../llm/lm_studio_client');
+
+   File: backend/process_docs.js (Line 5)
+   OLD: const { getEmbedding } = require('../llm/ollama_client');
+   NEW: const { getEmbedding } = require('../llm/lm_studio_client');
+
+📋 STEP 3: TEST THE CHANGES
+   - Run: node test_lm_studio.js
+   - Should show MUCH faster speeds!
+
+🎯 THAT'S IT! Just change 3 lines!
+
+Your app will now use:
+✅ LM Studio for text generation (GPU accelerated!)
+✅ Ollama for embeddings (still fast enough)
+
+⚠️  IMPORTANT: Keep both LM Studio AND Ollama running:
+   - LM Studio: For fast text generation 
+   - Ollama: For embeddings (until we optimize this later)
+
+🚀 EXPECTED RESULTS:
+   - Text generation: 5 seconds → Under 1 second
+   - CPU usage: Much lower  
+   - GPU usage: Finally working!
+
+💡 TROUBLESHOOTING:
+   - If you get connection errors, make sure LM Studio Local Server is running
+   - Check that GPU acceleration is enabled in LM Studio settings
+   - Try restarting LM Studio if it's slow 

@@ -1,7 +1,7 @@
 {
   "name": "industrial-automation-assistant",
-  "version": "2.3.0",
-  "description": "Industrial Automation AI Assistant Desktop Application - Optimized Performance",
+  "version": "2.4.0",
+  "description": "Industrial Automation AI Assistant Desktop Application - GPU Accelerated Performance",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

@@ -722,7 +722,7 @@ async function processUserDocuments() {
   
   try {
     // Import required modules for processing
-    const { getEmbedding } = require('./llm/ollama_client');
+    const { getEmbedding } = require('./llm/lm_studio_client');
     
     // Configuration
     const CHUNK_SIZE = 200; // Approximate words per chunk (reduced for faster processing)

@@ -3,7 +3,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { getEmbedding, generateResponse } = require('../llm/ollama_client');
+const { getEmbedding, generateResponse } = require('../llm/lm_studio_client');
 const systemMonitor = require('./system_monitor');
 
 // Configuration
