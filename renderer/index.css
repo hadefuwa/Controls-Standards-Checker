@@ -292,6 +292,117 @@ body {
     border: 1px solid #0ea5e9;
 }
 
+/* Confidence-based visual effects for AI responses */
+.assistant-message {
+    transition: all 0.5s ease;
+}
+
+.assistant-message.confidence-low .message-text {
+    background: rgba(220, 38, 38, 0.15);
+    border: 1px solid #dc2626;
+    box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.3);
+    position: relative;
+}
+
+.assistant-message.confidence-low .message-text::before {
+    content: "⚠️ Low Confidence";
+    position: absolute;
+    top: -12px;
+    left: 16px;
+    background: #dc2626;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.assistant-message.confidence-medium-low .message-text {
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid #f59e0b;
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.3);
+    animation: cautious-glow 3s ease-in-out infinite;
+    position: relative;
+}
+
+.assistant-message.confidence-medium-low .message-text::before {
+    content: "🟡 Moderate Confidence";
+    position: absolute;
+    top: -12px;
+    left: 16px;
+    background: #f59e0b;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.assistant-message.confidence-medium .message-text {
+    background: rgba(249, 115, 22, 0.15);
+    border: 1px solid #f97316;
+    box-shadow: 0 0 20px rgba(249, 115, 22, 0.4);
+    animation: moderate-pulse 2s ease-in-out infinite;
+    position: relative;
+}
+
+.assistant-message.confidence-medium .message-text::before {
+    content: "🟠 Good Confidence";
+    position: absolute;
+    top: -12px;
+    left: 16px;
+    background: #f97316;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.assistant-message.confidence-high .message-text {
+    background: rgba(34, 197, 94, 0.15);
+    border: 1px solid #22c55e;
+    box-shadow: 0 0 25px rgba(34, 197, 94, 0.5);
+    animation: confident-glow 1.5s ease-in-out infinite;
+    position: relative;
+}
+
+.assistant-message.confidence-high .message-text::before {
+    content: "✅ High Confidence";
+    position: absolute;
+    top: -12px;
+    left: 16px;
+    background: #22c55e;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+@keyframes cautious-glow {
+    0%, 100% { box-shadow: 0 0 15px rgba(245, 158, 11, 0.3); }
+    50% { box-shadow: 0 0 25px rgba(245, 158, 11, 0.6), 0 0 35px rgba(245, 158, 11, 0.3); }
+}
+
+@keyframes moderate-pulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(249, 115, 22, 0.4); }
+    50% { box-shadow: 0 0 30px rgba(249, 115, 22, 0.7), 0 0 40px rgba(249, 115, 22, 0.4); }
+}
+
+@keyframes confident-glow {
+    0%, 100% { box-shadow: 0 0 25px rgba(34, 197, 94, 0.5); }
+    50% { box-shadow: 0 0 35px rgba(34, 197, 94, 0.8), 0 0 45px rgba(34, 197, 94, 0.5); }
+}
+
 /* Welcome Message Styles */
 .welcome-header {
     margin-bottom: 24px;

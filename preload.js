@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Get documents list
   getDocuments: () => ipcRenderer.invoke('get-documents'),
   
+  // Remove a document
+  removeDocument: (filename) => ipcRenderer.invoke('remove-document', filename),
+  
   // Reindex documents
   reindexDocuments: () => ipcRenderer.invoke('reindex-documents'),
   

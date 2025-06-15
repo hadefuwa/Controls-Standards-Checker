@@ -209,7 +209,7 @@ async function handleSendMessage() {
             });
             
             // Display AI response with typing animation
-            await addMessageWithTyping(result.answer, 'assistant', result.sources, result.metadata, result.elapsedTime, result.systemStats);
+            await addMessageWithTyping(result.answer, 'assistant', result.sources, result.metadata, result.elapsedTime, result.systemStats, result.confidence, result.confidenceLevel);
             updateSystemStatus('System Ready', 'ready');
             logSystemEvent('Query processed successfully using ' + result.modelUsed);
         } else {
@@ -269,9 +269,16 @@ function setProcessingState(processing) {
 /**
  * Add message to chat interface
  */
-function addMessage(text, sender, sources = null, metadata = null, elapsedTime = null, systemStats = null) {
+function addMessage(text, sender, sources = null, metadata = null, elapsedTime = null, systemStats = null, confidence = null, confidenceLevel = null) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${sender}-message`;
+    
+    // Add confidence class for visual effects
+    if (sender === 'assistant' && confidenceLevel) {
+        const className = `confidence-${confidenceLevel}`;
+        messageDiv.classList.add(className);
+        console.log(`💡 Applied confidence class: ${className} (${confidence}%)`);
+    }
     
     // Create message avatar
     const avatar = document.createElement('div');
@@ -299,7 +306,7 @@ function addMessage(text, sender, sources = null, metadata = null, elapsedTime =
     
     // Add technical sources if available
     if (sources && sources.length > 0) {
-        const sourcesDiv = createTechnicalSources(sources, metadata, elapsedTime);
+        const sourcesDiv = createTechnicalSources(sources, metadata, elapsedTime, systemStats, confidence);
         contentDiv.appendChild(sourcesDiv);
     }
     
@@ -322,8 +329,8 @@ function addMessage(text, sender, sources = null, metadata = null, elapsedTime =
 /**
  * Add message with professional typing effect
  */
-async function addMessageWithTyping(text, sender, sources = null, metadata = null, elapsedTime = null, systemStats = null) {
-    const messageDiv = addMessage('', sender);
+async function addMessageWithTyping(text, sender, sources = null, metadata = null, elapsedTime = null, systemStats = null, confidence = null, confidenceLevel = null) {
+    const messageDiv = addMessage('', sender, null, null, null, null, confidence, confidenceLevel);
     const textDiv = messageDiv.querySelector('.message-text');
     
     // Professional typing simulation
@@ -340,18 +347,18 @@ async function addMessageWithTyping(text, sender, sources = null, metadata = nul
         }
     }
     
-    // Add technical sources after typing complete
-    if (sources && sources.length > 0) {
-        const contentDiv = messageDiv.querySelector('.message-content');
-        const sourcesDiv = createTechnicalSources(sources, metadata, elapsedTime, systemStats);
-        contentDiv.appendChild(sourcesDiv);
-    }
+            // Add technical sources after typing complete
+        if (sources && sources.length > 0) {
+            const contentDiv = messageDiv.querySelector('.message-content');
+            const sourcesDiv = createTechnicalSources(sources, metadata, elapsedTime, systemStats, confidence);
+            contentDiv.appendChild(sourcesDiv);
+        }
 }
 
 /**
  * Create technical reference sources display
  */
-function createTechnicalSources(sources, metadata, elapsedTime = null, systemStats = null) {
+function createTechnicalSources(sources, metadata, elapsedTime = null, systemStats = null, confidence = null) {
     const sourcesDiv = document.createElement('div');
     sourcesDiv.className = 'sources';
     
@@ -366,11 +373,14 @@ function createTechnicalSources(sources, metadata, elapsedTime = null, systemSta
         sourcesDiv.appendChild(sourceItem);
     });
     
-    // Add metadata information
+    // Add metadata information with confidence score
     if (metadata) {
         const metaItem = document.createElement('div');
         metaItem.className = 'source-item';
-        let metaText = `System Confidence: ${(metadata.top_similarity * 100).toFixed(1)}% | Knowledge Base Coverage: ${metadata.relevant_chunks_used}/${metadata.total_chunks_searched} segments`;
+        
+        // Use the confidence score if available, otherwise fall back to top_similarity
+        const confidenceScore = confidence !== null ? confidence : (metadata.confidence_score || (metadata.top_similarity * 100));
+        let metaText = `Response Confidence: ${confidenceScore}% | Knowledge Base Coverage: ${metadata.relevant_chunks_used}/${metadata.total_chunks_searched} segments`;
         
         // Add elapsed time if available
         if (elapsedTime) {

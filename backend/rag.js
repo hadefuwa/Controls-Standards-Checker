@@ -11,10 +11,10 @@ let EMBEDDINGS_FILE = path.join(__dirname, 'embedding_db', 'embeddings.json');  
 const EMBEDDING_MODEL = 'all-minilm';  // Model used for embeddings
 const TEXT_MODEL = 'qwen2:0.5b';  // Ultra-fast, smallest model (352MB)
 const VISION_MODEL = 'llava:13b';  // Vision model for image analysis
-const TOP_K_CHUNKS = 2;  // Reduce to 2 chunks for balance
-
+const TOP_K_CHUNKS = 4;  // Balanced for performance and accuracy
+const SIMILARITY_THRESHOLD = 0.35;  // Lowered for better coverage
 // Maximum context length to prevent model overload
-const MAX_CONTEXT_LENGTH = 1500;  // Maximum context length to send to model (reduced for CPU performance)
+const MAX_CONTEXT_LENGTH = 2500;  // Optimized for model performance
 
 // In-memory cache for document embeddings
 let documentChunks = null;
@@ -87,38 +87,72 @@ function cosineSimilarity(vecA, vecB) {
 }
 
 /**
- * Get diverse chunks from different documents to avoid over-relying on one source
+ * Enhance user query with technical synonyms and related terms
+ * @param {string} query - Original user query
+ * @returns {string} - Enhanced query with technical terms
+ */
+function enhanceQuery(query) {
+    // Focused technical term mappings for industrial safety
+    const synonyms = {
+        'emergency stop': ['e-stop', 'estop'],
+        'push button': ['pushbutton', 'button'],
+        'color': ['colour'],
+        'ce marking': ['ce mark'],
+        'risk assessment': ['hazard analysis']
+    };
+    
+    let enhancedQuery = query.toLowerCase();
+    
+    // Add only the most relevant synonyms to avoid noise
+    for (const [term, alternates] of Object.entries(synonyms)) {
+        if (enhancedQuery.includes(term)) {
+            enhancedQuery += ' ' + alternates.slice(0, 2).join(' '); // Limit to 2 synonyms
+        }
+    }
+    
+    return enhancedQuery;
+}
+
+/**
+ * Get high-quality chunks with similarity filtering and smart diversity
  * @param {Array} sortedChunks - Chunks sorted by similarity (highest first)
  * @param {number} maxChunks - Maximum number of chunks to return
- * @returns {Array} - Array of diverse chunks
+ * @returns {Array} - Array of high-quality, diverse chunks
  */
-function getDiverseChunks(sortedChunks, maxChunks) {
+function getOptimizedChunks(sortedChunks, maxChunks) {
+    // Simple but effective approach - mix of quality and diversity
     const selectedChunks = [];
     const sourceDocuments = new Set();
     
-    // First pass: get best chunk from each unique document
+    // Pass 1: Get best chunk from each unique document (diversity)
     for (const chunk of sortedChunks) {
-        if (selectedChunks.length >= maxChunks) break;
+        if (selectedChunks.length >= Math.ceil(maxChunks / 2)) break;
         
         const source = chunk.metadata?.source;
-        if (source && !sourceDocuments.has(source)) {
+        if (source && !sourceDocuments.has(source) && chunk.similarity >= SIMILARITY_THRESHOLD) {
             selectedChunks.push(chunk);
             sourceDocuments.add(source);
         }
     }
     
-    // Second pass: fill remaining slots with best remaining chunks
+    // Pass 2: Fill remaining slots with best chunks (regardless of source)
     for (const chunk of sortedChunks) {
         if (selectedChunks.length >= maxChunks) break;
         
-        // Skip if we already selected this chunk
-        if (!selectedChunks.some(selected => selected.id === chunk.id)) {
+        if (!selectedChunks.find(selected => selected.id === chunk.id) && chunk.similarity >= 0.3) {
             selectedChunks.push(chunk);
         }
     }
     
-    // Sort final selection by similarity for consistency
+    // Ensure we have at least some chunks even if quality is low
+    if (selectedChunks.length === 0) {
+        selectedChunks.push(...sortedChunks.slice(0, Math.min(2, sortedChunks.length)));
+    }
+    
+    // Sort by similarity for best context ordering
     selectedChunks.sort((a, b) => b.similarity - a.similarity);
+    
+    console.log(`📊 Optimized selection: ${sortedChunks.length} → ${selectedChunks.length} chunks (avg similarity: ${(selectedChunks.reduce((sum, c) => sum + c.similarity, 0) / selectedChunks.length * 100).toFixed(1)}%)`);
     
     return selectedChunks;
 }
@@ -144,13 +178,21 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'lm
         // Step 1: Load documents
         const allDocumentChunks = await loadDocuments();
         
-        // Step 2: Embed the user query
-        console.log('🔍 Embedding user query...');
-        const queryEmbedding = await getEmbedding(userQuery);
+        // Step 2: Enhance query with technical synonyms
+        console.log('🔧 Enhancing query with technical terms...');
+        const enhancedQuery = enhanceQuery(userQuery);
+        console.log(`Original: "${userQuery}"`);
+        if (enhancedQuery !== userQuery.toLowerCase()) {
+            console.log(`Enhanced: "${enhancedQuery}"`);
+        }
+        
+        // Step 3: Embed the enhanced query
+        console.log('🔍 Embedding enhanced query...');
+        const queryEmbedding = await getEmbedding(enhancedQuery);
         console.log(`Query embedded (${queryEmbedding.length} dimensions)`);
         
-        // Step 3: Perform semantic search
-        console.log('🔎 Performing semantic search...');
+        // Step 4: Perform semantic search with quality filtering
+        console.log('🔎 Performing intelligent semantic search...');
         const similarities = allDocumentChunks.map(chunk => ({
             ...chunk,
             similarity: cosineSimilarity(queryEmbedding, chunk.embedding)
@@ -159,30 +201,43 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'lm
         // Sort by similarity (highest first)
         similarities.sort((a, b) => b.similarity - a.similarity);
         
-        // Get diverse chunks from different documents
-        const relevantChunks = getDiverseChunks(similarities, TOP_K_CHUNKS);
-        console.log(`✅ Found ${relevantChunks.length} relevant chunks from diverse sources`);
+        // Get optimized chunks for better performance
+        const relevantChunks = getOptimizedChunks(similarities, TOP_K_CHUNKS);
+        console.log(`✅ Selected ${relevantChunks.length} optimized chunks from diverse sources`);
         
         // Log similarity scores for debugging
         relevantChunks.forEach((chunk, index) => {
             console.log(`   ${index + 1}. Similarity: ${(chunk.similarity * 100).toFixed(1)}% - ${chunk.id}`);
         });
         
-        // Step 4: Construct context from relevant chunks - LIMIT LENGTH
-        console.log('📄 Constructing context...');
-        let context = relevantChunks
-            .map((chunk, index) => `[Source ${index + 1}: ${chunk.metadata.source}]\n${chunk.document}`)
-            .join('\n\n---\n\n');
+        // Step 5: Construct optimized context with smart truncation
+        console.log('📄 Constructing optimized context...');
         
-        // Truncate context if too long to prevent model overload
-        if (context.length > MAX_CONTEXT_LENGTH) {
-            context = context.substring(0, MAX_CONTEXT_LENGTH) + '... [truncated for performance]';
-            console.log(`⚠️ Context truncated to ${MAX_CONTEXT_LENGTH} characters for performance`);
+        // Smart context construction - prioritize by similarity and diversity
+        let contextParts = [];
+        let totalLength = 0;
+        
+        for (let i = 0; i < relevantChunks.length; i++) {
+            const chunk = relevantChunks[i];
+            const confidence = (chunk.similarity * 100).toFixed(1);
+            const header = `[Source ${i + 1}: ${chunk.metadata.source} - Relevance: ${confidence}%]`;
+            const content = chunk.document.trim();
+            const part = `${header}\n${content}`;
+            
+            // Check if adding this chunk would exceed limit
+            if (totalLength + part.length + 50 > MAX_CONTEXT_LENGTH && contextParts.length > 0) {
+                console.log(`⚠️ Context size limit reached, using ${contextParts.length}/${relevantChunks.length} chunks`);
+                break;
+            }
+            
+            contextParts.push(part);
+            totalLength += part.length + 50; // +50 for separators
         }
         
-        console.log(`✅ Context constructed (${context.length} characters)`);
+        const context = contextParts.join('\n\n=== === ===\n\n');
+        console.log(`✅ Optimized context constructed (${context.length} characters from ${contextParts.length} chunks)`);
         
-        // Step 5: Use the selected model and handle images
+        // Step 6: Use the selected model and handle images
         const modelToUse = selectedModel;
         
         // Check if image is provided and if model supports vision
@@ -190,18 +245,42 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'lm
                              modelToUse.toLowerCase().includes('bakllava') || 
                              modelToUse.toLowerCase().includes('moondream');
         
+        // Enhanced system prompt for better accuracy
+        const systemPrompt = `You are an expert industrial safety consultant specializing in European regulations and standards. Your expertise covers:
+
+• Machinery Directive (2006/42/EC)
+• Low Voltage Directive (2014/35/EU)  
+• EMC Directive (2014/30/EU)
+• Harmonized safety standards (EN ISO 13849, EN 62061, etc.)
+• Risk assessment methodologies
+• CE marking requirements
+
+INSTRUCTIONS:
+1. Base your answers STRICTLY on the provided context sources
+2. Quote specific sections, clauses, or requirements when possible
+3. If information is incomplete, state what's missing clearly
+4. Provide practical, actionable guidance
+5. Reference the specific source document and section
+6. If the context doesn't contain the answer, say so explicitly
+
+ANSWER FORMAT:
+- Start with a direct answer to the question
+- Support with specific citations from the context
+- Explain any technical requirements clearly
+- Mention relevant standards or directive sections`;
+
         let messages;
         if (imageBase64 && isVisionModel) {
             // Vision model with image
-            console.log('🖼️ Using vision model with image analysis...');
+            console.log('🖼️ Using vision model with enhanced prompting...');
             messages = [
                 {
                     role: 'system',
-                    content: 'You are an expert in European industrial safety directives and regulations. Answer questions about the Machinery Directive, Low Voltage Directive (LVD), EMC Directive, and related safety standards. When analyzing images, focus on safety aspects, compliance requirements, and identify relevant standards. Use the provided context to give accurate, specific answers.'
+                    content: systemPrompt + '\n\nAdditionally, analyze any provided images focusing on safety compliance, standard requirements, and regulatory aspects.'
                 },
                 {
                     role: 'user',
-                    content: `Context: ${context}\n\nQuestion: ${userQuery}\n\nPlease analyze the provided image and answer the question based on both the image content and the context provided.`,
+                    content: `CONTEXT SOURCES:\n${context}\n\n===================\n\nQUESTION: ${userQuery}\n\nPlease analyze the provided image and answer the question based on both the image content and the context sources above. Be specific about which source supports your answer.`,
                     images: [imageBase64]
                 }
             ];
@@ -211,11 +290,11 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'lm
             messages = [
                 {
                     role: 'system',
-                    content: 'You are an expert in European industrial safety directives and regulations. Answer questions about the Machinery Directive, Low Voltage Directive (LVD), EMC Directive, and related safety standards. Use the provided context to give accurate, specific answers. If the context doesn\'t contain enough information, say so clearly.'
+                    content: systemPrompt
                 },
                 {
                     role: 'user',
-                    content: `Context: ${context}\n\nQuestion: ${userQuery}\n\nNote: An image was provided but the current model does not support image analysis. Please answer based on the text context only.`
+                    content: `CONTEXT SOURCES:\n${context}\n\n===================\n\nQUESTION: ${userQuery}\n\nNote: An image was provided but cannot be processed by the current model. Please answer based solely on the context sources above.`
                 }
             ];
         } else {
@@ -223,15 +302,60 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'lm
             messages = [
                 {
                     role: 'system',
-                    content: 'You are an expert in European industrial safety directives and regulations. Answer questions about the Machinery Directive, Low Voltage Directive (LVD), EMC Directive, and related safety standards. Use the provided context to give accurate, specific answers. If the context doesn\'t contain enough information, say so clearly.'
+                    content: systemPrompt
                 },
                 {
                     role: 'user',
-                    content: `Context: ${context}\n\nQuestion: ${userQuery}\n\nPlease provide a detailed answer based on the context.`
+                    content: `CONTEXT SOURCES:\n${context}\n\n===================\n\nQUESTION: ${userQuery}\n\nPlease provide a detailed, accurate answer based on the context sources above. Reference specific sources and sections.`
                 }
             ];
         }
         
+        // Calculate confidence based on top similarity scores
+        const topSimilarity = relevantChunks[0]?.similarity || 0;
+        const avgTopSimilarity = relevantChunks.slice(0, 3).reduce((sum, chunk) => sum + chunk.similarity, 0) / Math.min(3, relevantChunks.length);
+        const confidence = Math.round(avgTopSimilarity * 100);
+        
+        console.log(`📊 Calculated confidence: ${confidence}% (top similarity: ${(topSimilarity * 100).toFixed(1)}%)`);
+        
+        // Check if confidence is too low to provide an answer
+        if (confidence < 30) {
+            console.log('❌ Confidence too low - refusing to answer');
+            const lowConfidenceResponse = "I'm sorry, but I'm not confident enough in my knowledge to provide a reliable answer to your question. The available information doesn't seem to closely match what you're asking about.\n\nPlease try:\n• Rephrasing your question with different keywords\n• Being more specific about the context\n• Checking if the topic is covered in the loaded documents";
+            
+            // Return low confidence result
+            const endTime = Date.now();
+            const elapsedTime = endTime - startTime;
+            const systemStats = systemMonitor.stopMonitoring();
+            
+            return {
+                answer: lowConfidenceResponse,
+                query: userQuery,
+                hasImage: !!imageBase64,
+                modelUsed: modelToUse,
+                elapsedTime: elapsedTime,
+                confidence: confidence,
+                confidenceLevel: 'low',
+                sources: relevantChunks.slice(0, 3).map(chunk => ({
+                    id: chunk.id,
+                    source: chunk.metadata.source,
+                    similarity: chunk.similarity,
+                    content_preview: chunk.document.substring(0, 150) + '...'
+                })),
+                systemStats: systemStats,
+                metadata: {
+                    total_chunks_searched: allDocumentChunks.length,
+                    relevant_chunks_used: relevantChunks.length,
+                    top_similarity: topSimilarity,
+                    confidence_score: confidence,
+                    embedding_model: EMBEDDING_MODEL,
+                    generation_model: modelToUse,
+                    elapsed_time_ms: elapsedTime,
+                    elapsed_time_formatted: `${(elapsedTime / 1000).toFixed(2)}s`
+                }
+            };
+        }
+
         console.log(`🤖 Generating response using ${modelToUse}${imageBase64 && isVisionModel ? ' with image analysis' : ''}...`);
         const aiResponse = await generateResponse(modelToUse, messages, signal);
         console.log('✅ Text response generated successfully');
@@ -243,12 +367,22 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'lm
         // Stop monitoring and get system stats
         const systemStats = systemMonitor.stopMonitoring();
         
+        // Determine confidence level for visual effects
+        let confidenceLevel = 'high';
+        if (confidence < 50) {
+            confidenceLevel = 'medium-low';
+        } else if (confidence < 70) {
+            confidenceLevel = 'medium';
+        }
+        
         const result = {
             answer: aiResponse,
             query: userQuery,
             hasImage: !!imageBase64,
             modelUsed: modelToUse,
             elapsedTime: elapsedTime,
+            confidence: confidence,
+            confidenceLevel: confidenceLevel,
             sources: relevantChunks.map(chunk => ({
                 id: chunk.id,
                 source: chunk.metadata.source,
@@ -260,6 +394,7 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'lm
                 total_chunks_searched: allDocumentChunks.length,
                 relevant_chunks_used: relevantChunks.length,
                 top_similarity: relevantChunks[0]?.similarity || 0,
+                confidence_score: confidence,
                 embedding_model: EMBEDDING_MODEL,
                 generation_model: modelToUse,
                 elapsed_time_ms: elapsedTime,

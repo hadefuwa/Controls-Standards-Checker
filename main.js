@@ -435,7 +435,9 @@ ipcMain.handle('ask-question', async (event, question, imageBase64 = null, selec
       systemStats: result.systemStats,
       hasImage: result.hasImage,
       modelUsed: result.modelUsed,
-      elapsedTime: result.elapsedTime
+      elapsedTime: result.elapsedTime,
+      confidence: result.confidence,
+      confidenceLevel: result.confidenceLevel
     };
   } catch (error) {
     console.error('❌ Main process error:', error.message);
