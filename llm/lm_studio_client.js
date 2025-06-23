@@ -46,9 +46,26 @@ async function generateResponse(model, messages, signal = null) {
     const requestBody = {
         model: "loaded-model", // LM Studio ignores this, uses whatever model is loaded
         messages: messages,
-        temperature: 0.7,
-        max_tokens: 1000,
-        stream: false  // We want the complete response, not streaming
+        temperature: 0.1,  // Lower temperature for more consistent, focused responses
+        max_tokens: 8000,  // Significantly increased for complete responses
+        stream: false,  // We want the complete response, not streaming
+        response_format: { 
+            type: "json_object",
+            schema: {
+                type: "object",
+                properties: {
+                    thinking: {
+                        type: "string",
+                        description: "Your step-by-step reasoning process and analysis"
+                    },
+                    answer: {
+                        type: "string", 
+                        description: "Your final, complete answer to the user's question"
+                    }
+                },
+                required: ["thinking", "answer"]
+            }
+        }
     };
 
     try {

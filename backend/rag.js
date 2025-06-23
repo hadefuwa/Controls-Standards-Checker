@@ -14,7 +14,7 @@ const VISION_MODEL = 'llava:13b';  // Vision model for image analysis
 const TOP_K_CHUNKS = 4;  // Balanced for performance and accuracy
 const SIMILARITY_THRESHOLD = 0.35;  // Lowered for better coverage
 // Maximum context length to prevent model overload
-const MAX_CONTEXT_LENGTH = 2500;  // Optimized for model performance
+const MAX_CONTEXT_LENGTH = 20000;  // Very high limit for complete context inclusion
 
 // In-memory cache for document embeddings
 let documentChunks = null;
@@ -245,7 +245,7 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'lm
                              modelToUse.toLowerCase().includes('bakllava') || 
                              modelToUse.toLowerCase().includes('moondream');
         
-        // Enhanced system prompt for better accuracy
+        // Enhanced system prompt for better accuracy with structured output
         const systemPrompt = `You are an expert industrial safety consultant specializing in European regulations and standards. Your expertise covers:
 
 • Machinery Directive (2006/42/EC)
@@ -263,11 +263,16 @@ INSTRUCTIONS:
 5. Reference the specific source document and section
 6. If the context doesn't contain the answer, say so explicitly
 
-ANSWER FORMAT:
-- Start with a direct answer to the question
-- Support with specific citations from the context
-- Explain any technical requirements clearly
-- Mention relevant standards or directive sections`;
+You are an expert in industrial automation standards and compliance. 
+
+When answering questions:
+1. Think through the problem step by step, showing your reasoning process
+2. Provide a comprehensive, detailed answer based on the context sources
+3. Include specific references to standards and source documents  
+4. Explain any limitations or additional considerations
+5. Make your response educational and thorough
+
+Feel free to show your thinking process as you work through the question - this helps users understand the reasoning behind your conclusions.`;
 
         let messages;
         if (imageBase64 && isVisionModel) {
@@ -306,7 +311,11 @@ ANSWER FORMAT:
                 },
                 {
                     role: 'user',
-                    content: `CONTEXT SOURCES:\n${context}\n\n===================\n\nQUESTION: ${userQuery}\n\nPlease provide a detailed, accurate answer based on the context sources above. Reference specific sources and sections.`
+                    content: `CONTEXT SOURCES:\n${context}\n\n===================\n\nQUESTION: ${userQuery}\n\nRespond in JSON format with two fields:
+1. "thinking": Your step-by-step reasoning process, analysis of the sources, and how you arrived at your answer
+2. "answer": Your final, complete answer with specific references to the context sources
+
+Make both sections detailed and comprehensive.`
                 }
             ];
         }

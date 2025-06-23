@@ -39,9 +39,16 @@ let systemStartTime = new Date();
 let currentImage = null; // Store current pasted image
 
 
+// Splash screen management
+let splashScreen = null;
+let loadingText = null;
+
 // Initialize application
 document.addEventListener('DOMContentLoaded', () => {
     console.log('System: Engineering Interface Ready');
+    
+    // Initialize splash screen
+    initializeSplashScreen();
     
     // Set up event listeners
     setupEventListeners();
@@ -49,15 +56,105 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize UI components
     initializeUIComponents();
     
-    // Check backend system status
-    checkBackendStatus();
-    
-    // Set initial focus to input
-    setTimeout(() => questionInput.focus(), 150);
+    // Check backend system status and load documents
+    initializeApplication();
     
     // Log system initialization
     logSystemEvent('Interface initialized successfully');
 });
+
+/**
+ * Initialize splash screen elements
+ */
+function initializeSplashScreen() {
+    splashScreen = document.getElementById('splashScreen');
+    loadingText = document.getElementById('loadingText');
+    
+    // Show splash screen
+    showSplashScreen();
+}
+
+/**
+ * Show splash screen with loading message
+ */
+function showSplashScreen() {
+    if (splashScreen) {
+        splashScreen.style.display = 'flex';
+        updateSplashMessage('Initializing system...');
+    }
+}
+
+/**
+ * Update splash screen loading message
+ */
+function updateSplashMessage(message) {
+    if (loadingText) {
+        loadingText.textContent = message;
+    }
+}
+
+/**
+ * Hide splash screen with fade animation
+ */
+function hideSplashScreen() {
+    if (splashScreen) {
+        updateSplashMessage('Ready!');
+        
+        setTimeout(() => {
+            splashScreen.classList.add('fade-out');
+            
+            // Remove splash screen after fade animation
+            setTimeout(() => {
+                splashScreen.style.display = 'none';
+                
+                // Enable inputs now that app is ready
+                questionInput.disabled = false;
+                sendButton.disabled = false;
+                
+                // Set initial focus to input after splash is hidden
+                questionInput.focus();
+                
+                logSystemEvent('Splash screen hidden - application ready');
+            }, 500);
+        }, 800);
+    }
+}
+
+/**
+ * Initialize application systems
+ */
+async function initializeApplication() {
+    try {
+        // Update splash message
+        updateSplashMessage('Connecting to backend...');
+        
+        // Check backend system status
+        await checkBackendStatus();
+        
+        // Update splash message
+        updateSplashMessage('Loading documents...');
+        
+        // Initialize document manager
+        await initializeDocumentManager();
+        
+        // Update splash message
+        updateSplashMessage('Finalizing setup...');
+        
+        // Small delay to show final message
+        setTimeout(() => {
+            hideSplashScreen();
+        }, 1000);
+        
+    } catch (error) {
+        console.error('Application initialization error:', error);
+        updateSplashMessage('Error loading application');
+        
+        // Still hide splash screen even on error
+        setTimeout(() => {
+            hideSplashScreen();
+        }, 2000);
+    }
+}
 
 /**
  * Configure event listeners for user interaction
@@ -459,6 +556,12 @@ function createTechnicalSources(sources, metadata, elapsedTime = null, systemSta
  * Format message text for technical display
  */
 function formatMessageText(text) {
+    // Check if this is a response from a thinking model
+    if (hasThinkingContent(text)) {
+        return formatThinkingModelResponse(text);
+    }
+    
+    // Regular formatting for non-thinking models
     return text
         .replace(/\n/g, '<br>')
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -466,6 +569,186 @@ function formatMessageText(text) {
         .replace(/`(.*?)`/g, '<code>$1</code>')
         .replace(/(\d+\.\s)/g, '<br>$1'); // Format numbered lists
 }
+
+/**
+ * Check if response contains thinking content
+ */
+function hasThinkingContent(text) {
+    // Check for our structured format first (highest priority)
+    if (/<THINKING>[\s\S]*?<\/THINKING>[\s\S]*?<ANSWER>[\s\S]*?<\/ANSWER>/i.test(text)) {
+        return true;
+    }
+    
+    // Check for common thinking model patterns as fallback
+    const thinkingPatterns = [
+        // Standard thinking tags
+        /<thinking>[\s\S]*?<\/thinking>/i,
+        /<thought>[\s\S]*?<\/thought>/i,
+        
+        // Markdown-style thinking headers
+        /\*\*Thinking:\*\*[\s\S]*?(?=\*\*Answer:\*\*|\*\*Response:\*\*|$)/i,
+        /\*\*Reasoning:\*\*[\s\S]*?(?=\*\*Answer:\*\*|\*\*Response:\*\*|$)/i,
+        
+        // DeepSeek R1 patterns - responses that start with analysis
+        /^(Okay, let's|Let me|First, I|Looking at|The user|I need to|This question|Based on)[\s\S]*?(?=\n\n[A-Z]|\n\n\d+\.)/i,
+        
+        // Responses that contain reasoning followed by conclusion
+        /[\s\S]*?(Based on the provided|Conclusion|Therefore|In summary)[\s\S]*?(?=\n\n|\n[A-Z])/i,
+        
+        // Long responses with internal reasoning (over 1000 chars with analysis keywords)
+        text.length > 1000 && /(First, I|Looking at|The key point|I should|The user might|Let me|I need to check)/i.test(text)
+    ];
+    
+    return thinkingPatterns.some(pattern => {
+        if (typeof pattern === 'boolean') return pattern;
+        return pattern.test(text);
+    });
+}
+
+/**
+ * Format response from thinking models with collapsible thinking section
+ */
+function formatThinkingModelResponse(text) {
+    console.log('=== PROCESSING LLM RESPONSE ===');
+    console.log('Full response text (first 300 chars):', text.substring(0, 300));
+    console.log('Full response length:', text.length);
+    
+    let thinking = '';
+    let answer = '';
+    
+    // First, try to parse as JSON (structured output)
+    try {
+        const jsonResponse = JSON.parse(text);
+        console.log('✅ Successfully parsed JSON response');
+        
+        if (jsonResponse.thinking && jsonResponse.answer) {
+            console.log('✅ Found structured thinking and answer in JSON');
+            console.log('Thinking length:', jsonResponse.thinking.length);
+            console.log('Answer length:', jsonResponse.answer.length);
+            
+            thinking = jsonResponse.thinking.trim();
+            answer = jsonResponse.answer.trim();
+        } else {
+            console.log('⚠️ JSON response missing thinking or answer fields');
+            answer = JSON.stringify(jsonResponse, null, 2);
+            thinking = '';
+        }
+    } catch (e) {
+        console.log('❌ Not valid JSON, trying natural language detection...');
+        
+        // Fallback to natural language detection
+        const answerIndicators = [
+            /\n\n(Based on|According to|The answer is|In summary|To conclude|Therefore)/i,
+            /\n\n(Direct answer:|Answer:|Final answer:|Conclusion:)/i,
+            /\n\n(Yes,|No,|It is|You can|You cannot|The requirement)/i,
+            /\n\n(EN \d+|ISO \d+|IEC \d+|NFPA \d+)/i,
+            /\n\n([A-Z][^.]*:)/i,
+            /\n\n(\d+\.|•|-|\*)/i
+        ];
+        
+        let bestSplit = -1;
+        for (const indicator of answerIndicators) {
+            const match = text.match(indicator);
+            if (match) {
+                const splitIndex = text.indexOf(match[0]);
+                if (splitIndex > 200 && (bestSplit === -1 || splitIndex < bestSplit)) {
+                    bestSplit = splitIndex;
+                }
+            }
+        }
+        
+        if (bestSplit !== -1) {
+            thinking = text.substring(0, bestSplit).trim();
+            answer = text.substring(bestSplit + 2).trim();
+            console.log('✅ Used natural language separation');
+        } else {
+            const paragraphs = text.split(/\n\s*\n/);
+            if (paragraphs.length >= 4 && text.length > 800) {
+                const midPoint = Math.floor(paragraphs.length / 2);
+                thinking = paragraphs.slice(0, midPoint).join('\n\n').trim();
+                answer = paragraphs.slice(midPoint).join('\n\n').trim();
+                console.log('✅ Used paragraph-based separation');
+            } else {
+                answer = text;
+                thinking = '';
+                console.log('❌ No clear separation found');
+            }
+        }
+    }
+    
+    // Format the answer part
+    const formattedAnswer = answer
+        .replace(/\n/g, '<br>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/`(.*?)`/g, '<code>$1</code>')
+        .replace(/(\d+\.\s)/g, '<br>$1');
+    
+    // If there's no thinking content, just return the formatted answer
+    if (!thinking) {
+        return formattedAnswer;
+    }
+    
+    // Format the thinking part
+    const formattedThinking = thinking
+        .replace(/\n/g, '<br>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/`(.*?)`/g, '<code>$1</code>')
+        .replace(/(\d+\.\s)/g, '<br>$1');
+    
+    // Generate unique ID for this thinking section
+    const thinkingId = 'thinking-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    
+    // Create the collapsible thinking section
+    return `
+        <div class="thinking-response">
+            <div class="answer-section">
+                ${formattedAnswer}
+            </div>
+            <div class="thinking-toggle-container">
+                <button class="thinking-toggle" onclick="toggleThinking('${thinkingId}')" title="Click to see the model's thinking process">
+                    <span class="thinking-toggle-icon">🧠</span>
+                    <span class="thinking-toggle-text">Click here to see model's thinking process</span>
+                    <span class="thinking-toggle-arrow">▼</span>
+                </button>
+                <div class="thinking-content" id="${thinkingId}" style="display: none;">
+                    <div class="thinking-header">
+                        <span class="thinking-label">🤔 Model's Thinking Process:</span>
+                    </div>
+                    <div class="thinking-text">
+                        ${formattedThinking}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Toggle thinking section visibility
+ */
+function toggleThinking(thinkingId) {
+    const thinkingContent = document.getElementById(thinkingId);
+    const toggleButton = thinkingContent.previousElementSibling;
+    const arrow = toggleButton.querySelector('.thinking-toggle-arrow');
+    const text = toggleButton.querySelector('.thinking-toggle-text');
+    
+    if (thinkingContent.style.display === 'none') {
+        thinkingContent.style.display = 'block';
+        arrow.textContent = '▲';
+        text.textContent = 'Hide model\'s thinking process';
+        toggleButton.classList.add('expanded');
+    } else {
+        thinkingContent.style.display = 'none';
+        arrow.textContent = '▼';
+        text.textContent = 'Click here to see model\'s thinking process';
+        toggleButton.classList.remove('expanded');
+    }
+}
+
+// Make toggleThinking globally accessible
+window.toggleThinking = toggleThinking;
 
 /**
  * Log system events for debugging
@@ -531,7 +814,7 @@ function showImagePreview(imageSrc, filename) {
 }
 
 /**
- * Clear image preview and reset current image
+ * Clear image preview and reset image state
  */
 function clearImagePreview() {
     const imagePreview = document.getElementById('imagePreview');
@@ -539,15 +822,17 @@ function clearImagePreview() {
     imagePreview.innerHTML = '';
     currentImage = null;
     
-    // Revert to previous model if we auto-switched
+    // Revert to previous model if we auto-switched (only if model selector exists)
     const modelSelect = document.getElementById('modelSelect');
-    const previousModel = modelSelect.getAttribute('data-previous-model');
-    
-    if (previousModel) {
-        modelSelect.value = previousModel;
-        modelSelect.removeAttribute('data-previous-model');
-        showSystemMessage(`🔄 Reverted to previous model: ${previousModel}`);
-        logSystemEvent(`Reverted to previous model: ${previousModel}`);
+    if (modelSelect) {
+        const previousModel = modelSelect.getAttribute('data-previous-model');
+        
+        if (previousModel) {
+            modelSelect.value = previousModel;
+            modelSelect.removeAttribute('data-previous-model');
+            showSystemMessage(`🔄 Reverted to previous model: ${previousModel}`);
+            logSystemEvent(`Reverted to previous model: ${previousModel}`);
+        }
     }
     
     logSystemEvent('Image preview cleared');
@@ -558,6 +843,14 @@ function clearImagePreview() {
  */
 function autoSelectVisionModel() {
     const modelSelect = document.getElementById('modelSelect');
+    
+    // If no model selector exists (using LM Studio), just show a message
+    if (!modelSelect) {
+        showSystemMessage(`🖼️ Image ready for analysis with LM Studio model`);
+        logSystemEvent(`Image ready for analysis with LM Studio model`);
+        return;
+    }
+    
     const currentModel = modelSelect.value;
     
     // List of vision-capable models (in order of speed preference)
@@ -1063,6 +1356,10 @@ function updateCurrentModelDisplay(modelName) {
  * Initialize UI components
  */
 function initializeUIComponents() {
+    // Disable input initially until splash screen is hidden
+    questionInput.disabled = true;
+    sendButton.disabled = true;
+    
     // Set up responsive behavior
     setupResponsiveBehavior();
     
@@ -1070,11 +1367,6 @@ function initializeUIComponents() {
     if (window.innerWidth <= 768) {
         quickQuestions.classList.add('collapsed');
     }
-    
-    // Initialize document manager after UI setup
-    setTimeout(() => {
-        initializeDocumentManager();
-    }, 100);
 }
 
 /**
