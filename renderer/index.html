@@ -3,38 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Industrial Automation AI Assistant</title>
+    <title>Hamed's Industrial Automation Compliance Assistant</title>
     <link rel="stylesheet" href="index.css">
 </head>
 <body>
     <!-- Header -->
     <header class="header">
         <div class="header-content">
-            <div class="logo">
-                <div class="logo-icon">
-                    <div class="icon-industrial"></div>
-                </div>
-                <div class="logo-text">
-                    <h1>Hamed Adefuwas Industrial AI Assistant</h1>
-                    <p>Standards & Regulations Compliance System</p>
+            <div class="left-section">
+                <button class="sidebar-toggle-main" id="sidebarToggleMain" title="Toggle Document Manager">
+                    <div class="hamburger-icon"></div>
+                </button>
+                <div class="logo">
+                    <div class="logo-icon">
+                        <div class="icon-industrial"></div>
+                    </div>
+                    <div class="logo-text">
+                        <h1>Hamed's Industrial Automation Compliance Assistant</h1>
+                        <p>Standards & Compliance System</p>
+                    </div>
                 </div>
             </div>
-            <div class="status" id="status">
-                <div class="status-indicator" id="statusIndicator"></div>
-                <span class="status-label">System Status:</span>
-                <span id="statusText">Ready</span>
+            
+            <div class="right-section">
+                <div class="model-info-container">
+                    <span class="model-label">LM Studio Model:</span>
+                    <span class="model-name" id="currentModel">Loading...</span>
+                </div>
+                <div class="status" id="status">
+                    <div class="status-indicator" id="statusIndicator"></div>
+                    <span id="statusText">Ready</span>
+                </div>
             </div>
         </div>
     </header>
 
     <!-- Main Content -->
     <main class="main">
-        <!-- Sidebar -->
+        <!-- Collapsible Sidebar -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <h3>Document Manager</h3>
-                <button class="sidebar-toggle" id="sidebarToggle">
-                    <div class="toggle-icon"></div>
+                <h3>Documents</h3>
+                <button class="sidebar-close" id="sidebarClose" title="Close Panel">
+                    <div class="close-icon"></div>
                 </button>
             </div>
             
@@ -42,32 +53,32 @@
                 <!-- Document Status -->
                 <div class="doc-status">
                     <div class="status-item">
-                        <span class="status-label">Documents Loaded:</span>
-                        <span class="status-value" id="docCount">Loading...</span>
+                        <span class="status-label">Loaded:</span>
+                        <span class="status-value" id="docCount">0</span>
                     </div>
                     <div class="status-item">
-                        <span class="status-label">Total Chunks:</span>
-                        <span class="status-value" id="chunkCount">Loading...</span>
+                        <span class="status-label">Chunks:</span>
+                        <span class="status-value" id="chunkCount">0</span>
                     </div>
                 </div>
                 
                 <!-- Document Actions -->
                 <div class="doc-actions">
-                    <button class="action-btn primary" id="addDocBtn">
+                    <button class="action-btn primary" id="addDocBtn" title="Add Documents">
                         <div class="btn-icon add"></div>
-                        <span>Add Documents</span>
+                        <span>Add Docs</span>
                     </button>
-                    <button class="action-btn secondary" id="refreshDocsBtn">
+                    <button class="action-btn secondary" id="refreshDocsBtn" title="Refresh List">
                         <div class="btn-icon refresh"></div>
-                        <span>Refresh List</span>
+                        <span>Refresh</span>
                     </button>
-                    <button class="action-btn info" id="openFolderBtn">
+                    <button class="action-btn info" id="openFolderBtn" title="Open Documents Folder">
                         <div class="btn-icon folder"></div>
-                        <span>Open Folder</span>
+                        <span>Folder</span>
                     </button>
-                    <button class="action-btn warning" id="reindexBtn">
+                    <button class="action-btn warning" id="reindexBtn" title="Rebuild Search Index">
                         <div class="btn-icon reindex"></div>
-                        <span>Rebuild Index</span>
+                        <span>Rebuild</span>
                     </button>
                 </div>
                 
@@ -83,6 +94,7 @@
         
         <!-- Chat Container -->
         <div class="chat-container">
+            <!-- Chat Messages -->
             <div class="chat-messages" id="chatMessages">
                 <!-- Welcome Message -->
                 <div class="message assistant-message">
@@ -93,41 +105,41 @@
                         <div class="message-text">
                             <div class="welcome-header">
                                 <h3>Industrial Automation Compliance Assistant</h3>
-                                <p>Technical expertise for machinery safety and regulatory compliance</p>
+                                <p>Expert guidance for machinery safety and regulatory compliance</p>
                             </div>
                             
                             <div class="capabilities">
-                                <h4>Technical Capabilities:</h4>
+                                <h4>Key Areas of Expertise:</h4>
                                 <div class="capability-grid">
                                     <div class="capability-item">
                                         <div class="cap-icon safety"></div>
-                                        <span>Machinery Safety Requirements</span>
+                                        <span>Machinery Safety</span>
                                     </div>
                                     <div class="capability-item">
                                         <div class="cap-icon compliance"></div>
-                                        <span>CE Marking & Compliance</span>
+                                        <span>CE Marking</span>
                                     </div>
                                     <div class="capability-item">
                                         <div class="cap-icon risk"></div>
-                                        <span>Risk Assessment Procedures</span>
+                                        <span>Risk Assessment</span>
                                     </div>
                                     <div class="capability-item">
                                         <div class="cap-icon emergency"></div>
-                                        <span>Emergency Stop Systems</span>
+                                        <span>Emergency Systems</span>
                                     </div>
                                     <div class="capability-item">
                                         <div class="cap-icon directive"></div>
-                                        <span>EU Machinery Directive 2006/42/EC</span>
+                                        <span>EU Directives</span>
                                     </div>
                                     <div class="capability-item">
                                         <div class="cap-icon standards"></div>
-                                        <span>Industrial Automation Standards</span>
+                                        <span>Industry Standards</span>
                                     </div>
                                 </div>
                             </div>
                             
                             <div class="cta">
-                                <p>Enter your technical query below for expert guidance on industrial automation compliance.</p>
+                                <p>Ask your technical question below for expert guidance on industrial automation compliance.</p>
                             </div>
                         </div>
                     </div>
@@ -136,16 +148,47 @@
 
             <!-- Input Area -->
             <div class="input-area">
+                <!-- Quick Questions -->
+                <div class="quick-questions" id="quickQuestions">
+                    <div class="quick-header">
+                        <h4>Quick Start</h4>
+                        <button class="quick-toggle" id="quickToggle" title="Show/Hide Quick Questions">
+                            <div class="toggle-arrow"></div>
+                        </button>
+                    </div>
+                    <div class="quick-content" id="quickContent">
+                        <div class="quick-buttons">
+                            <button class="quick-btn" data-question="What are the essential health and safety requirements for machinery?" title="Learn about basic safety requirements">
+                                <div class="quick-icon safety"></div>
+                                <span>Safety Requirements</span>
+                            </button>
+                            <button class="quick-btn" data-question="How should CE marking be applied to industrial equipment?" title="Understand CE marking procedures">
+                                <div class="quick-icon compliance"></div>
+                                <span>CE Marking</span>
+                            </button>
+                            <button class="quick-btn" data-question="What are the emergency stop requirements?" title="Learn about emergency stop systems">
+                                <div class="quick-icon emergency"></div>
+                                <span>Emergency Stop</span>
+                            </button>
+                            <button class="quick-btn" data-question="How should risk assessment be conducted for machinery?" title="Understand risk assessment procedures">
+                                <div class="quick-icon risk"></div>
+                                <span>Risk Assessment</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Input Container -->
                 <div class="input-container">
                     <div class="textarea-wrapper">
                         <textarea 
                             id="questionInput" 
-                            placeholder="Enter your technical question regarding machinery safety, compliance, or regulatory requirements... (Ctrl+V to paste images)"
+                            placeholder="Ask your technical question about machinery safety, compliance, or regulatory requirements... (Ctrl+V to paste images)"
                             rows="1"
                         ></textarea>
                         <div id="imagePreview" class="image-preview hidden"></div>
                         <div class="input-actions">
-                            <button id="sendButton" class="send-button">
+                            <button id="sendButton" class="send-button" title="Send Message (Enter)">
                                 <span id="sendButtonText">
                                     <div class="send-icon"></div>
                                 </span>
@@ -153,33 +196,10 @@
                                     <div class="spinner-icon"></div>
                                 </div>
                             </button>
-                            <button id="stopButton" class="stop-button hidden">
+                            <button id="stopButton" class="stop-button hidden" title="Stop Generation">
                                 <div class="stop-icon"></div>
                             </button>
                         </div>
-                    </div>
-                </div>
-                
-                <!-- Quick Questions -->
-                <div class="quick-questions">
-                    <h4>Common Technical Queries</h4>
-                    <div class="quick-buttons">
-                        <button class="quick-btn" data-question="What are the essential health and safety requirements for machinery?">
-                            <div class="quick-icon safety"></div>
-                            <span>Safety Requirements</span>
-                        </button>
-                        <button class="quick-btn" data-question="How should CE marking be applied to industrial equipment?">
-                            <div class="quick-icon compliance"></div>
-                            <span>CE Marking</span>
-                        </button>
-                        <button class="quick-btn" data-question="What are the emergency stop requirements?">
-                            <div class="quick-icon emergency"></div>
-                            <span>Emergency Stop</span>
-                        </button>
-                        <button class="quick-btn" data-question="How should risk assessment be conducted for machinery?">
-                            <div class="quick-icon risk"></div>
-                            <span>Risk Assessment</span>
-                        </button>
                     </div>
                 </div>
             </div>
@@ -189,39 +209,18 @@
     <!-- Hidden file input for document uploads -->
     <input type="file" id="fileInput" class="file-input" multiple accept=".txt,.pdf,.doc,.docx,.md">
 
-    <!-- YouTube Link -->
-    <div class="footer-youtube">
-        <a href="https://www.youtube.com/@HamedAdefuwa" target="_blank" class="youtube-link-footer" title="Visit Hamed Adefuwa's YouTube Channel">
-            <div class="youtube-icon"></div>
-            <span class="youtube-text">Check Out My Youtube Channel</span>
-        </a>
-    </div>
+    <!-- Footer with YouTube Link -->
+    <footer class="footer">
+        <div class="footer-content">
+            <a href="https://www.youtube.com/@HamedAdefuwa" target="_blank" class="youtube-link" title="Visit Hamed Adefuwa's YouTube Channel">
+                <div class="youtube-icon"></div>
+                <span class="youtube-text">Check Out My YouTube Channel</span>
+            </a>
+        </div>
+    </footer>
 
-    <div class="status-bar">
-        <div class="status-item">
-            <span class="status-icon">SYS</span>
-            <span id="systemStatus">System Ready</span>
-        </div>
-        <div class="status-item">
-            <span class="status-icon">DOC</span>
-            <span id="documentCount">0 documents</span>
-        </div>
-        <div class="status-item">
-            <span class="status-icon">AI</span>
-            <label for="modelSelect">Model:</label>
-            <select id="modelSelect" class="model-dropdown">
-                <option value="lm-studio-gpu" selected>LM Studio (GPU Accelerated) 🚀</option>
-                <option value="tinyllama">tinyllama (CPU Only - Slow)</option>
-                <option value="qwen2:0.5b">qwen2:0.5b (CPU Only - Slow)</option>
-                <option value="gemma:2b">gemma:2b (CPU Only - Slow)</option>
-                <option value="phi3:mini">phi3:mini (CPU Only - Slow)</option>
-                <option value="llama3:latest">llama3:latest (CPU Only - Slow)</option>
-                <option value="moondream">moondream (CPU Only - Slow)</option>
-                <option value="llava:7b">llava:7b (CPU Only - Slow)</option>
-                <option value="llava:13b">llava:13b (CPU Only - Slow)</option>
-            </select>
-        </div>
-    </div>
+    <!-- Overlay for mobile sidebar -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <script src="renderer.js"></script>
 </body>

@@ -20,6 +20,17 @@ const statusIndicator = document.getElementById('statusIndicator');
 const status = document.getElementById('status');
 const quickButtons = document.querySelectorAll('.quick-btn');
 
+// Sidebar elements
+const sidebar = document.getElementById('sidebar');
+const sidebarToggleMain = document.getElementById('sidebarToggleMain');
+const sidebarClose = document.getElementById('sidebarClose');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+// Quick questions toggle
+const quickToggle = document.getElementById('quickToggle');
+const quickQuestions = document.getElementById('quickQuestions');
+const quickContent = document.getElementById('quickContent');
+
 // System state management
 let isProcessing = false;
 let currentRequest = null; // Track current request to allow cancellation
@@ -27,12 +38,16 @@ let messageHistory = [];
 let systemStartTime = new Date();
 let currentImage = null; // Store current pasted image
 
+
 // Initialize application
 document.addEventListener('DOMContentLoaded', () => {
     console.log('System: Engineering Interface Ready');
     
     // Set up event listeners
     setupEventListeners();
+    
+    // Initialize UI components
+    initializeUIComponents();
     
     // Check backend system status
     checkBackendStatus();
@@ -86,6 +101,14 @@ function setupEventListeners() {
     // Image paste functionality
     questionInput.addEventListener('paste', handleImagePaste);
     document.addEventListener('paste', handleImagePaste);
+    
+    // Sidebar toggle functionality
+    sidebarToggleMain.addEventListener('click', toggleSidebar);
+    sidebarClose.addEventListener('click', closeSidebar);
+    sidebarOverlay.addEventListener('click', closeSidebar);
+    
+    // Quick questions toggle
+    quickToggle.addEventListener('click', toggleQuickQuestions);
 }
 
 /**
@@ -101,15 +124,24 @@ async function checkBackendStatus() {
         if (testResult.success) {
             updateSystemStatus('System Ready', 'ready');
             logSystemEvent('Backend system operational - ' + testResult.message);
+            
+            // Update model info display with actual model from LM Studio
+            updateCurrentModelDisplay(testResult.modelInfo || testResult.model || 'LM Studio (GPU Accelerated)');
         } else {
             updateSystemStatus('System Error', 'error');
             logSystemEvent('Backend system failure: ' + testResult.error);
-            showSystemMessage('System Warning: Backend service unavailable. Verify Ollama installation and configuration.');
+            showSystemMessage('System Warning: Backend service unavailable. Verify LM Studio installation and configuration.');
+            
+            // Update model info to show error
+            updateCurrentModelDisplay('Connection Failed');
         }
     } catch (error) {
         updateSystemStatus('Connection Failed', 'error');
         logSystemEvent('System connection error: ' + error.message);
-        showSystemMessage('System Error: Unable to establish backend connection. Check system configuration.');
+        showSystemMessage('System Error: Unable to establish backend connection. Check LM Studio configuration.');
+        
+        // Update model info to show error
+        updateCurrentModelDisplay('Connection Failed');
     }
 }
 
@@ -161,8 +193,8 @@ async function handleSendMessage() {
         return;
     }
     
-    // Get selected model
-    const selectedModel = document.getElementById('modelSelect').value;
+    // Use LM Studio model (we'll get this from backend)
+    const selectedModel = 'lm-studio';
     
     // Log user interaction
     messageHistory.push({ 
@@ -236,6 +268,12 @@ async function handleSendMessage() {
         setProcessingState(false);
         currentRequest = null; // Clear current request
         clearImagePreview(); // Clear image after sending
+        
+        // Auto-close sidebar on mobile after sending a message
+        if (window.innerWidth <= 768 && sidebar.classList.contains('open')) {
+            closeSidebar();
+        }
+        
         questionInput.focus();
     }
 }
@@ -707,14 +745,7 @@ async function initializeDocumentManager() {
     // First check document source
     await checkDocumentSource();
     
-    // Setup sidebar toggle
-    const sidebarToggle = document.getElementById('sidebarToggle');
-    const sidebar = document.getElementById('sidebar');
-    
-    sidebarToggle.addEventListener('click', () => {
-        sidebar.classList.toggle('collapsed');
-        logSystemEvent('Sidebar toggled');
-    });
+    // Sidebar is now handled by the main UI setup, skip this part
     
     // Setup document action buttons
     const addDocBtn = document.getElementById('addDocBtn');
@@ -822,13 +853,10 @@ async function loadDocumentsList() {
     const docItems = document.getElementById('docItems');
     const docCount = document.getElementById('docCount');
     const chunkCount = document.getElementById('chunkCount');
-    const documentCount = document.getElementById('documentCount'); // Bottom status bar
-    
     // Show loading state
     docItems.innerHTML = '<div class="loading-indicator">Loading documents...</div>';
     docCount.textContent = 'Loading...';
     chunkCount.textContent = 'Loading...';
-    documentCount.textContent = 'Loading...';
     
     try {
         const result = await window.electronAPI.getDocuments();
@@ -840,10 +868,6 @@ async function loadDocumentsList() {
             docCount.textContent = result.documents.length;
             chunkCount.textContent = result.totalChunks || 'N/A';
             
-            // Update bottom status bar
-            const docText = result.documents.length === 1 ? 'document' : 'documents';
-            documentCount.textContent = `${result.documents.length} ${docText}`;
-            
             logSystemEvent(`Loaded ${result.documents.length} documents`);
         } else {
             throw new Error(result.error || 'Failed to load documents');
@@ -853,7 +877,6 @@ async function loadDocumentsList() {
         docItems.innerHTML = '<div class="error-indicator">Error loading documents</div>';
         docCount.textContent = 'Error';
         chunkCount.textContent = 'Error';
-        documentCount.textContent = '0 documents';
     }
 }
 
@@ -982,11 +1005,7 @@ function formatFileSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-// Initialize document manager when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    // Small delay to ensure all other initialization is complete
-    setTimeout(initializeDocumentManager, 500);
-});
+// Document manager initialization is now handled by initializeUIComponents
 
 // Export functions for testing (if needed)
 if (typeof module !== 'undefined' && module.exports) {
@@ -1028,4 +1047,103 @@ async function handleStopMessage() {
         currentRequest = null;
         questionInput.focus();
     }
-} 
+}
+
+/**
+ * Update the current model display
+ */
+function updateCurrentModelDisplay(modelName) {
+    const currentModelElement = document.getElementById('currentModel');
+    if (currentModelElement) {
+        currentModelElement.textContent = modelName;
+    }
+}
+
+/**
+ * Initialize UI components
+ */
+function initializeUIComponents() {
+    // Set up responsive behavior
+    setupResponsiveBehavior();
+    
+    // Initialize quick questions as collapsed on mobile
+    if (window.innerWidth <= 768) {
+        quickQuestions.classList.add('collapsed');
+    }
+    
+    // Initialize document manager after UI setup
+    setTimeout(() => {
+        initializeDocumentManager();
+    }, 100);
+}
+
+/**
+ * Toggle sidebar visibility
+ */
+function toggleSidebar() {
+    sidebar.classList.toggle('open');
+    sidebarOverlay.classList.toggle('active');
+    
+    // Add some haptic feedback for mobile
+    if (navigator.vibrate) {
+        navigator.vibrate(50);
+    }
+}
+
+/**
+ * Close sidebar
+ */
+function closeSidebar() {
+    sidebar.classList.remove('open');
+    sidebarOverlay.classList.remove('active');
+}
+
+/**
+ * Toggle quick questions visibility
+ */
+function toggleQuickQuestions() {
+    quickQuestions.classList.toggle('collapsed');
+    
+    // Save preference to localStorage
+    const isCollapsed = quickQuestions.classList.contains('collapsed');
+    localStorage.setItem('quickQuestionsCollapsed', isCollapsed);
+}
+
+/**
+ * Setup responsive behavior
+ */
+function setupResponsiveBehavior() {
+    // Handle window resize
+    window.addEventListener('resize', () => {
+        // Close sidebar on desktop if it's open
+        if (window.innerWidth > 768 && sidebar.classList.contains('open')) {
+            closeSidebar();
+        }
+        
+        // Auto-collapse quick questions on mobile
+        if (window.innerWidth <= 768 && !quickQuestions.classList.contains('collapsed')) {
+            quickQuestions.classList.add('collapsed');
+        } else if (window.innerWidth > 768) {
+            // Restore quick questions preference on desktop
+            const isCollapsed = localStorage.getItem('quickQuestionsCollapsed') === 'true';
+            if (isCollapsed) {
+                quickQuestions.classList.add('collapsed');
+            } else {
+                quickQuestions.classList.remove('collapsed');
+            }
+        }
+    });
+    
+    // Handle escape key to close sidebar
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+            closeSidebar();
+        }
+    });
+    
+    // Load quick questions preference
+    const isCollapsed = localStorage.getItem('quickQuestionsCollapsed') === 'true';
+    if (isCollapsed && window.innerWidth > 768) {
+        quickQuestions.classList.add('collapsed');
+    }
+}
