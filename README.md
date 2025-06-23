@@ -65,10 +65,14 @@ The app window should open automatically!
 ## How to Use
 
 1. **Start the app** using `npm start`
-2. **Type your question** about industrial automation or safety standards
-3. **Press Enter** or click "Ask"
-4. **Get AI-powered answers** based on technical documents
-5. **Ask follow-up questions** as needed
+2. **Set up LM Studio** for enhanced thinking model support (see [LM Studio Setup Guide](LM_STUDIO_SETUP.md))
+3. **Type your question** about industrial automation or safety standards
+4. **Press Enter** or click "Ask"
+5. **Get AI-powered answers** with detailed reasoning process
+6. **Ask follow-up questions** as needed
+
+### 🧠 Thinking Model Support
+This app now supports **structured thinking models** that show their reasoning process! See the [LM Studio Setup Guide](LM_STUDIO_SETUP.md) for detailed configuration instructions.
 
 ## Example Questions You Can Ask
 
