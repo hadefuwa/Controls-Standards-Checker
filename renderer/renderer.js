@@ -1309,7 +1309,6 @@ function displayDocumentsList(documents) {
                 <div class="doc-name">${doc.name}</div>
                 <div class="doc-actions">
                     <button class="doc-delete" onclick="deleteDocument('${doc.name}')" title="Delete document permanently">Delete</button>
-                    <button class="doc-remove" onclick="removeDocument('${doc.name}')" title="Remove from index">×</button>
                 </div>
             </div>
             <div class="doc-meta">
@@ -1348,8 +1347,9 @@ async function removeDocument(filename) {
     }
 }
 
-// Make removeDocument globally accessible for onclick handlers
+// Make removeDocument and deleteDocument globally accessible for onclick handlers
 window.removeDocument = removeDocument;
+window.deleteDocument = deleteDocument;
 
 /**
  * Handle opening documents folder

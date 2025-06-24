@@ -193,10 +193,34 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'lm
         
         // Step 4: Perform semantic search with quality filtering
         console.log('🔎 Performing intelligent semantic search...');
-        const similarities = allDocumentChunks.map(chunk => ({
-            ...chunk,
-            similarity: cosineSimilarity(queryEmbedding, chunk.embedding)
-        }));
+        const similarities = allDocumentChunks.map(chunk => {
+            let similarity = cosineSimilarity(queryEmbedding, chunk.embedding);
+            
+            // Boost similarity for exact text matches (case-insensitive)
+            const queryLower = userQuery.toLowerCase();
+            const chunkTextLower = chunk.document.toLowerCase();
+            
+            // Check for exact phrase matches
+            if (chunkTextLower.includes(queryLower)) {
+                similarity += 0.3; // Significant boost for exact matches
+                console.log(`🎯 Exact match boost applied to ${chunk.id}`);
+            }
+            
+            // Check for partial matches (50%+ words match)
+            const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
+            const matchingWords = queryWords.filter(word => chunkTextLower.includes(word));
+            if (queryWords.length > 0 && matchingWords.length / queryWords.length >= 0.5) {
+                similarity += 0.15; // Moderate boost for partial matches
+            }
+            
+            // Cap similarity at 1.0
+            similarity = Math.min(similarity, 1.0);
+            
+            return {
+                ...chunk,
+                similarity: similarity
+            };
+        });
         
         // Sort by similarity (highest first)
         similarities.sort((a, b) => b.similarity - a.similarity);

@@ -42,5 +42,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportChat: (chatData, format) => ipcRenderer.invoke('export-chat', chatData, format),
   
   // Copy to clipboard (using the main process)
-  copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text)
+  copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text),
+  
+  // Upload document
+  uploadDocument: (documentData) => ipcRenderer.invoke('upload-document', documentData)
 }); 
