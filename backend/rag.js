@@ -3,7 +3,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { getEmbedding, generateResponse } = require('../llm/lm_studio_client_cpu_fallback');
+const { getEmbedding, generateResponse } = require('../llm/lm_studio_client');
 const systemMonitor = require('./system_monitor');
 
 // Configuration
@@ -243,7 +243,8 @@ async function answerQuestion(userQuery, imageBase64 = null, selectedModel = 'lm
         // Check if image is provided and if model supports vision
         const isVisionModel = modelToUse.toLowerCase().includes('llava') || 
                              modelToUse.toLowerCase().includes('bakllava') || 
-                             modelToUse.toLowerCase().includes('moondream');
+                             modelToUse.toLowerCase().includes('moondream') ||
+                             modelToUse.toLowerCase().includes('lm-studio'); // LM Studio can run vision models like DeepSeek R1
         
         // Enhanced system prompt for better accuracy with structured output
         const systemPrompt = `You are an expert industrial safety consultant specializing in European regulations and standards. Your expertise covers:
@@ -366,7 +367,7 @@ Make both sections detailed and comprehensive.`
         }
 
         console.log(`🤖 Generating response using ${modelToUse}${imageBase64 && isVisionModel ? ' with image analysis' : ''}...`);
-        const aiResponse = await generateResponse(modelToUse, messages, signal);
+        const aiResponse = await generateResponse(modelToUse, messages, signal, userQuery);
         console.log('✅ Text response generated successfully');
         
         // Step 6: Calculate elapsed time and prepare result object

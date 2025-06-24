@@ -63,6 +63,12 @@
             </div>
             
             <div class="right-section">
+                <div class="header-actions">
+                    <button class="header-btn" id="headerBookmarksBtn" title="View Bookmarks">
+                        <div class="btn-icon bookmark"></div>
+                        <span>Bookmarks</span>
+                    </button>
+                </div>
                 <div class="model-info-container">
                     <span class="model-label">LM Studio Model:</span>
                     <span class="model-name" id="currentModel">Loading...</span>
@@ -131,6 +137,30 @@
         
         <!-- Chat Container -->
         <div class="chat-container">
+            <!-- Chat Toolbar -->
+            <div class="chat-toolbar">
+                <div class="toolbar-left">
+                    <button class="toolbar-btn" id="searchChatBtn" title="Search Chat">
+                        <div class="btn-icon search"></div>
+                        <span>Search</span>
+                    </button>
+                    <button class="toolbar-btn" id="exportChatBtn" title="Export Chat">
+                        <div class="btn-icon export"></div>
+                        <span>Export</span>
+                    </button>
+                    <button class="toolbar-btn" id="bookmarksBtn" title="View Bookmarks">
+                        <div class="btn-icon bookmark"></div>
+                        <span>Bookmarks</span>
+                    </button>
+                </div>
+                <div class="toolbar-right">
+                    <div class="search-container hidden" id="searchContainer">
+                        <input type="text" id="searchInput" placeholder="Search messages..." />
+                        <button class="search-close" id="searchClose" title="Close Search">×</button>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Chat Messages -->
             <div class="chat-messages" id="chatMessages">
                 <!-- Welcome Message -->
@@ -258,6 +288,52 @@
 
     <!-- Overlay for mobile sidebar -->
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Bookmarks Modal -->
+    <div class="modal hidden" id="bookmarksModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Bookmarked Answers</h3>
+                <button class="modal-close" id="bookmarksModalClose">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="bookmarks-list" id="bookmarksList">
+                    <div class="loading-indicator">Loading bookmarks...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div class="modal hidden" id="exportModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Export Chat</h3>
+                <button class="modal-close" id="exportModalClose">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="export-options">
+                    <div class="option-group">
+                        <label>Export Format:</label>
+                        <div class="format-options">
+                            <label class="radio-option">
+                                <input type="radio" name="exportFormat" value="txt" checked>
+                                <span>Text File (.txt)</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="exportFormat" value="json">
+                                <span>JSON File (.json)</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="export-actions">
+                        <button class="btn secondary" id="exportCancelBtn">Cancel</button>
+                        <button class="btn primary" id="exportConfirmBtn">Export</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="renderer.js"></script>
 </body>

@@ -3,7 +3,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { getEmbedding } = require('../llm/lm_studio_client_cpu_fallback');
+const { getEmbedding } = require('../llm/lm_studio_client');
 
 // Configuration
 const SOURCE_DOCS_DIR = path.join(__dirname, 'source_docs');

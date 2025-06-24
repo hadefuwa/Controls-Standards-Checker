@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
@@ -7,6 +7,7 @@ const https = require('https');
 const userDataPath = app.getPath('userData');
 const userDocsPath = path.join(userDataPath, 'documents');
 const userEmbeddingsPath = path.join(userDataPath, 'embeddings');
+const userChatLogsPath = path.join(userDataPath, 'chat_logs');
 
 // Import the RAG backend
 const { answerQuestion, loadDocuments, setEmbeddingsPath } = require('./backend/rag');
@@ -17,13 +18,8 @@ let mainWindow;
 // Global variable to track current requests
 let currentRequestController = null;
 
-// GitHub configuration
-const GITHUB_API_BASE = 'https://api.github.com';
-const GITHUB_REPO = 'hadefuwa/Controls-Standards-Checker';
-const GITHUB_DOCS_PATH = 'backend/source_docs';
-
-// Track document source
-let isUsingGitHubDocuments = false;
+// Track document source - REMOVED
+// let isUsingGitHubDocuments = false;
 
 function createWindow() {
   // Create the browser window
@@ -64,12 +60,6 @@ app.whenReady().then(async () => {
   // Ensure user directories exist before creating window
   ensureDirectoriesExist();
   
-  // Try to update documents from GitHub first
-  const githubResult = await updateDocumentsFromGitHub();
-  if (githubResult.success && githubResult.conflictsResolved > 0) {
-    console.log(`🔄 ${githubResult.conflictsResolved} document conflicts were resolved during startup`);
-  }
-  
   // Set the embeddings path for the RAG module
   const embeddingsFilePath = path.join(userEmbeddingsPath, 'embeddings.json');
   setEmbeddingsPath(embeddingsFilePath);
@@ -105,6 +95,10 @@ function ensureDirectoriesExist() {
       fs.mkdirSync(userEmbeddingsPath, { recursive: true });
       console.log('📁 Created user embeddings directory:', userEmbeddingsPath);
     }
+    if (!fs.existsSync(userChatLogsPath)) {
+      fs.mkdirSync(userChatLogsPath, { recursive: true });
+      console.log('📁 Created user chat logs directory:', userChatLogsPath);
+    }
     
     // Copy existing documents from app bundle if they exist and user docs is empty
     const bundleDocsPath = path.join(__dirname, 'backend', 'source_docs');
@@ -135,286 +129,14 @@ function ensureDirectoriesExist() {
   }
 }
 
-// ========== GITHUB DOCUMENT MANAGEMENT ==========
+// ========== GITHUB DOCUMENT MANAGEMENT - REMOVED ==========
 
-/**
- * Check if internet connection is available
- */
-async function checkInternetConnection() {
-  return new Promise((resolve) => {
-    const req = https.request({
-      hostname: 'api.github.com',
-      port: 443,
-      path: '/',
-      method: 'HEAD',
-      timeout: 5000
-    }, (res) => {
-      resolve(true);
-    });
-    
-    req.on('error', () => resolve(false));
-    req.on('timeout', () => resolve(false));
-    req.end();
-  });
-}
-
-/**
- * Fetch file list from GitHub repository
- */
-async function fetchGitHubFileList() {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'api.github.com',
-      port: 443,
-      path: `/repos/${GITHUB_REPO}/contents/${GITHUB_DOCS_PATH}`,
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Industrial-AI-Assistant'
-      },
-      timeout: 10000
-    };
-    
-    const req = https.request(options, (res) => {
-      let data = '';
-      
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-      
-      res.on('end', () => {
-        try {
-          if (res.statusCode === 200) {
-            const files = JSON.parse(data);
-            // Filter for text files only
-            const textFiles = files.filter(file => 
-              file.type === 'file' && 
-              (file.name.endsWith('.txt') || file.name.endsWith('.md'))
-            );
-            resolve(textFiles);
-          } else {
-            reject(new Error(`GitHub API returned status ${res.statusCode}`));
-          }
-        } catch (error) {
-          reject(new Error('Failed to parse GitHub API response'));
-        }
-      });
-    });
-    
-    req.on('error', (error) => {
-      reject(new Error(`GitHub API request failed: ${error.message}`));
-    });
-    
-    req.on('timeout', () => {
-      reject(new Error('GitHub API request timed out'));
-    });
-    
-    req.end();
-  });
-}
-
-/**
- * Download a single file from GitHub
- */
-async function downloadGitHubFile(file) {
-  return new Promise((resolve, reject) => {
-    const req = https.request(file.download_url, (res) => {
-      let data = '';
-      
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-      
-      res.on('end', () => {
-        if (res.statusCode === 200) {
-          resolve({
-            name: file.name,
-            content: data,
-            size: file.size
-          });
-        } else {
-          reject(new Error(`Failed to download ${file.name}: Status ${res.statusCode}`));
-        }
-      });
-    });
-    
-    req.on('error', (error) => {
-      reject(new Error(`Download failed for ${file.name}: ${error.message}`));
-    });
-    
-    req.end();
-  });
-}
-
-/**
- * Show conflict resolution dialog to user
- */
-async function showConflictDialog(filename, localContent, githubContent) {
-  const result = await dialog.showMessageBox(mainWindow, {
-    type: 'question',
-    title: 'Document Conflict Detected',
-    message: `The document "${filename}" exists both locally and on GitHub with different content.`,
-    detail: `Local version: ${localContent.length} characters\nGitHub version: ${githubContent.length} characters\n\nWhat would you like to do?`,
-    buttons: [
-      'Keep Local Version',
-      'Use GitHub Version', 
-      'Backup Both Versions'
-    ],
-    defaultId: 2, // Default to "Backup Both"
-    cancelId: 0,  // Cancel means keep local
-    noLink: true
-  });
-  
-  return result.response;
-}
-
-/**
- * Handle conflict resolution choice
- */
-async function resolveDocumentConflict(choice, filename, localPath, githubContent) {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  
-  switch (choice) {
-    case 0: // Keep Local Version
-      console.log(`📋 Keeping local version of: ${filename}`);
-      return 'kept_local';
-      
-    case 1: // Use GitHub Version
-      fs.writeFileSync(localPath, githubContent, 'utf8');
-      console.log(`📥 Replaced with GitHub version: ${filename}`);
-      return 'used_github';
-      
-    case 2: // Backup Both Versions
-      // Backup local version
-      const backupPath = localPath.replace(/(\.[^.]+)$/, `_local_${timestamp}$1`);
-      fs.copyFileSync(localPath, backupPath);
-      
-      // Write GitHub version
-      fs.writeFileSync(localPath, githubContent, 'utf8');
-      
-      console.log(`📋 Backed up local version to: ${path.basename(backupPath)}`);
-      console.log(`📥 Updated to GitHub version: ${filename}`);
-      return 'backed_up_both';
-      
-    default:
-      return 'kept_local';
-  }
-}
-
-/**
- * Update documents from GitHub
- */
-async function updateDocumentsFromGitHub() {
-  console.log('🌐 Checking for GitHub document updates...');
-  
-  try {
-    // Check internet connection
-    const hasInternet = await checkInternetConnection();
-    if (!hasInternet) {
-      console.log('📴 No internet connection - using local documents');
-      return false;
-    }
-    
-    // Fetch file list from GitHub
-    const githubFiles = await fetchGitHubFileList();
-    console.log(`📋 Found ${githubFiles.length} documents on GitHub`);
-    
-    if (githubFiles.length === 0) {
-      console.log('⚠️ No documents found on GitHub - using local documents');
-      return false;
-    }
-    
-    // Create GitHub documents directory
-    const githubDocsPath = path.join(userDataPath, 'github_documents');
-    if (!fs.existsSync(githubDocsPath)) {
-      fs.mkdirSync(githubDocsPath, { recursive: true });
-    }
-    
-    // Download each file with conflict detection
-    console.log('⬇️ Downloading documents from GitHub...');
-    let downloadedCount = 0;
-    let conflictsResolved = 0;
-    
-    for (const file of githubFiles) {
-      try {
-        const downloadedFile = await downloadGitHubFile(file);
-        const githubTempPath = path.join(githubDocsPath, downloadedFile.name);
-        const localFilePath = path.join(userDocsPath, downloadedFile.name);
-        
-        // Write to GitHub temp directory first
-        fs.writeFileSync(githubTempPath, downloadedFile.content, 'utf8');
-        
-        // Check for conflicts with existing local files
-        if (fs.existsSync(localFilePath)) {
-          const localContent = fs.readFileSync(localFilePath, 'utf8');
-          const githubContent = downloadedFile.content;
-          
-          if (localContent !== githubContent) {
-            console.log(`⚠️ Conflict detected: ${downloadedFile.name}`);
-            
-            // Show conflict dialog and handle user choice
-            const choice = await showConflictDialog(downloadedFile.name, localContent, githubContent);
-            const result = await resolveDocumentConflict(choice, downloadedFile.name, localFilePath, githubContent);
-            
-            if (result === 'kept_local') {
-              console.log(`📋 User chose to keep local version of ${downloadedFile.name}`);
-            } else {
-              conflictsResolved++;
-            }
-          } else {
-            // Files are identical, no conflict
-            console.log(`✅ No changes needed: ${downloadedFile.name}`);
-          }
-        } else {
-          // New file, copy from GitHub temp to local
-          fs.copyFileSync(githubTempPath, localFilePath);
-          console.log(`📥 New document added: ${downloadedFile.name}`);
-        }
-        
-        downloadedCount++;
-      } catch (error) {
-        console.error(`❌ Failed to download ${file.name}:`, error.message);
-      }
-    }
-    
-    if (downloadedCount > 0) {
-      // Report results
-      let message = `🎉 Successfully processed ${downloadedCount} documents from GitHub`;
-      if (conflictsResolved > 0) {
-        message += ` (${conflictsResolved} conflicts resolved)`;
-      }
-      console.log(message);
-      
-      console.log('📁 GitHub document sync completed');
-      isUsingGitHubDocuments = true;
-      return {
-        success: true,
-        downloadedCount,
-        conflictsResolved,
-        message
-      };
-    } else {
-      console.log('❌ No documents successfully downloaded - using local documents');
-      return {
-        success: false,
-        downloadedCount: 0,
-        conflictsResolved: 0,
-        message: 'No documents downloaded'
-      };
-    }
-    
-  } catch (error) {
-    console.error('❌ Error updating documents from GitHub:', error.message);
-    return {
-      success: false,
-      downloadedCount: 0,
-      conflictsResolved: 0,
-      message: error.message
-    };
-  }
-}
+// All GitHub functions removed for cleaner local-only operation
 
 // IPC Handlers - Connect frontend to backend
 ipcMain.handle('ask-question', async (event, question, imageBase64 = null, selectedModel = 'lm-studio-gpu') => {
+  const startTime = Date.now(); // Track response time
+  
   try {
     console.log('📝 Main process received question:', question);
     console.log('🤖 Using model:', selectedModel);
@@ -426,6 +148,22 @@ ipcMain.handle('ask-question', async (event, question, imageBase64 = null, selec
     currentRequestController = new AbortController();
     
     const result = await answerQuestion(question, imageBase64, selectedModel, currentRequestController.signal);
+    
+    // Calculate total response time
+    const totalResponseTime = (Date.now() - startTime) / 1000;
+    
+    // Save chat log
+    try {
+      saveChatLog(question, result.answer, {
+        confidence: result.confidence,
+        confidenceLevel: result.confidenceLevel,
+        modelUsed: result.modelUsed,
+        sources: result.sources,
+        elapsedTime: totalResponseTime
+      });
+    } catch (logError) {
+      console.warn('⚠️ Failed to save chat log:', logError.message);
+    }
     
     return {
       success: true,
@@ -492,43 +230,46 @@ ipcMain.handle('stop-current-request', async (event) => {
 ipcMain.handle('get-document-source', async (event) => {
   return {
     success: true,
-    isUsingGitHub: isUsingGitHubDocuments,
-    source: isUsingGitHubDocuments ? 'GitHub Repository' : 'Local Documents'
+    isUsingGitHub: false,
+    source: 'Local Documents'
   };
 });
 
-// IPC Handler: Force refresh from GitHub
-ipcMain.handle('refresh-github-documents', async (event) => {
+// IPC Handler: Delete local document
+ipcMain.handle('delete-document', async (event, filename) => {
   try {
-    console.log('🔄 Manual GitHub document refresh requested');
-    const result = await updateDocumentsFromGitHub();
+    console.log('🗑️ Deleting document:', filename);
     
-    if (result.success) {
-      let message = `Documents synchronized from GitHub: ${result.downloadedCount} processed`;
-      if (result.conflictsResolved > 0) {
-        message += `, ${result.conflictsResolved} conflicts resolved`;
-      }
-      
-      return {
-        success: true,
-        message: message,
-        requiresReindex: result.downloadedCount > 0,
-        downloadedCount: result.downloadedCount,
-        conflictsResolved: result.conflictsResolved
-      };
-    } else {
+    const filePath = path.join(userDocsPath, filename);
+    
+    if (!fs.existsSync(filePath)) {
       return {
         success: false,
-        message: result.message || 'Failed to update from GitHub - using local documents'
+        error: 'Document not found'
       };
     }
+    
+    // Delete the file
+    fs.unlinkSync(filePath);
+    
+    console.log('✅ Document deleted successfully:', filename);
+    
+    return {
+      success: true,
+      message: `Document "${filename}" deleted successfully`
+    };
+    
   } catch (error) {
+    console.error('❌ Error deleting document:', error.message);
     return {
       success: false,
       error: error.message
     };
   }
 });
+
+// IPC Handler: Force refresh from GitHub
+// GitHub refresh handler removed - no longer needed for local-only operation
 
 ipcMain.handle('test-backend', async (event) => {
   try {
@@ -724,7 +465,7 @@ async function processUserDocuments() {
   
   try {
     // Import required modules for processing
-    const { getEmbedding } = require('./llm/lm_studio_client_cpu_fallback');
+    const { getEmbedding } = require('./llm/lm_studio_client');
     
     // Configuration
     const CHUNK_SIZE = 200; // Approximate words per chunk (reduced for faster processing)
@@ -887,6 +628,314 @@ ipcMain.handle('get-documents', async (event) => {
     };
   } catch (error) {
     console.error('❌ Error getting documents:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// ========== CHAT LOGGING FUNCTIONS ==========
+
+/**
+ * Save a chat conversation to the logs
+ */
+function saveChatLog(question, answer, metadata) {
+  try {
+    const timestamp = new Date();
+    const filename = `chat_${timestamp.getFullYear()}-${String(timestamp.getMonth() + 1).padStart(2, '0')}-${String(timestamp.getDate()).padStart(2, '0')}_${String(timestamp.getHours()).padStart(2, '0')}-${String(timestamp.getMinutes()).padStart(2, '0')}-${String(timestamp.getSeconds()).padStart(2, '0')}.json`;
+    
+    const chatLog = {
+      timestamp: timestamp.toISOString(),
+      question: question,
+      answer: answer,
+      metadata: {
+        confidence: metadata.confidence || 0,
+        confidenceLevel: metadata.confidenceLevel || 'unknown',
+        model: metadata.modelUsed || 'unknown',
+        chunks_used: metadata.sources ? metadata.sources.length : 0,
+        response_time: metadata.elapsedTime || 0,
+        sources: metadata.sources || []
+      }
+    };
+    
+    const logPath = path.join(userChatLogsPath, filename);
+    fs.writeFileSync(logPath, JSON.stringify(chatLog, null, 2));
+    
+    console.log('💾 Chat log saved:', filename);
+    
+    // Clean up old logs (keep only last 100 conversations)
+    cleanupOldChatLogs();
+    
+  } catch (error) {
+    console.error('❌ Error saving chat log:', error.message);
+  }
+}
+
+/**
+ * Clean up old chat logs, keeping only the last 100 conversations
+ */
+function cleanupOldChatLogs() {
+  try {
+    const files = fs.readdirSync(userChatLogsPath)
+      .filter(file => file.startsWith('chat_') && file.endsWith('.json'))
+      .map(file => ({
+        name: file,
+        path: path.join(userChatLogsPath, file),
+        mtime: fs.statSync(path.join(userChatLogsPath, file)).mtime
+      }))
+      .sort((a, b) => b.mtime - a.mtime); // Sort by modification time, newest first
+    
+    // Keep only the 100 most recent files
+    const filesToDelete = files.slice(100);
+    
+    for (const file of filesToDelete) {
+      fs.unlinkSync(file.path);
+      console.log('🗑️ Deleted old chat log:', file.name);
+    }
+    
+    if (filesToDelete.length > 0) {
+      console.log(`🧹 Cleaned up ${filesToDelete.length} old chat logs`);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error cleaning up chat logs:', error.message);
+  }
+}
+
+// ========== NEW FEATURE IPC HANDLERS ==========
+
+// IPC Handler: Save bookmark
+ipcMain.handle('save-bookmark', async (event, bookmarkData) => {
+  try {
+    const bookmarksPath = path.join(userDataPath, 'bookmarks.json');
+    let bookmarks = [];
+    
+    // Load existing bookmarks
+    if (fs.existsSync(bookmarksPath)) {
+      const bookmarksContent = fs.readFileSync(bookmarksPath, 'utf8');
+      bookmarks = JSON.parse(bookmarksContent);
+    }
+    
+    // Add new bookmark with timestamp and full metadata
+    const bookmark = {
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString(),
+      question: bookmarkData.question,
+      answer: bookmarkData.answer,
+      confidence: bookmarkData.confidence,
+      confidenceLevel: bookmarkData.confidenceLevel,
+      sources: bookmarkData.sources || [],
+      metadata: bookmarkData.metadata || {},
+      elapsedTime: bookmarkData.elapsedTime || 0,
+      systemStats: bookmarkData.systemStats || {}
+    };
+    
+    bookmarks.unshift(bookmark); // Add to beginning
+    
+    // Keep only last 100 bookmarks
+    if (bookmarks.length > 100) {
+      bookmarks = bookmarks.slice(0, 100);
+    }
+    
+    fs.writeFileSync(bookmarksPath, JSON.stringify(bookmarks, null, 2));
+    
+    console.log('🔖 Bookmark saved successfully');
+    
+    return {
+      success: true,
+      message: 'Answer bookmarked successfully!'
+    };
+    
+  } catch (error) {
+    console.error('❌ Error saving bookmark:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// IPC Handler: Get bookmarks
+ipcMain.handle('get-bookmarks', async (event) => {
+  try {
+    const bookmarksPath = path.join(userDataPath, 'bookmarks.json');
+    
+    if (!fs.existsSync(bookmarksPath)) {
+      return {
+        success: true,
+        bookmarks: []
+      };
+    }
+    
+    const bookmarksContent = fs.readFileSync(bookmarksPath, 'utf8');
+    const bookmarks = JSON.parse(bookmarksContent);
+    
+    return {
+      success: true,
+      bookmarks: bookmarks
+    };
+    
+  } catch (error) {
+    console.error('❌ Error loading bookmarks:', error.message);
+    return {
+      success: false,
+      error: error.message,
+      bookmarks: []
+    };
+  }
+});
+
+// IPC Handler: Load bookmark data
+ipcMain.handle('load-bookmark', async (event, bookmarkId) => {
+  try {
+    const bookmarksPath = path.join(userDataPath, 'bookmarks.json');
+    
+    if (!fs.existsSync(bookmarksPath)) {
+      return {
+        success: false,
+        error: 'No bookmarks found'
+      };
+    }
+    
+    const bookmarksContent = fs.readFileSync(bookmarksPath, 'utf8');
+    const bookmarks = JSON.parse(bookmarksContent);
+    
+    // Find bookmark with matching ID
+    const bookmark = bookmarks.find(b => b.id === bookmarkId);
+    
+    if (!bookmark) {
+      return {
+        success: false,
+        error: 'Bookmark not found'
+      };
+    }
+    
+    console.log('🔖 Bookmark loaded successfully');
+    
+    return {
+      success: true,
+      bookmark: bookmark
+    };
+    
+  } catch (error) {
+    console.error('❌ Error loading bookmark:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// IPC Handler: Delete bookmark
+ipcMain.handle('delete-bookmark', async (event, bookmarkId) => {
+  try {
+    const bookmarksPath = path.join(userDataPath, 'bookmarks.json');
+    
+    if (!fs.existsSync(bookmarksPath)) {
+      return {
+        success: false,
+        error: 'No bookmarks found'
+      };
+    }
+    
+    const bookmarksContent = fs.readFileSync(bookmarksPath, 'utf8');
+    let bookmarks = JSON.parse(bookmarksContent);
+    
+    // Remove bookmark with matching ID
+    bookmarks = bookmarks.filter(bookmark => bookmark.id !== bookmarkId);
+    
+    fs.writeFileSync(bookmarksPath, JSON.stringify(bookmarks, null, 2));
+    
+    console.log('🗑️ Bookmark deleted successfully');
+    
+    return {
+      success: true,
+      message: 'Bookmark deleted successfully'
+    };
+    
+  } catch (error) {
+    console.error('❌ Error deleting bookmark:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// IPC Handler: Export current chat
+ipcMain.handle('export-chat', async (event, chatData, format = 'txt') => {
+  try {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `chat_export_${timestamp}.${format}`;
+    
+    let content = '';
+    
+    if (format === 'txt') {
+      content = `Industrial Automation Compliance Assistant - Chat Export\n`;
+      content += `Export Date: ${new Date().toLocaleString()}\n`;
+      content += `Total Messages: ${chatData.length}\n`;
+      content += `${'='.repeat(60)}\n\n`;
+      
+      chatData.forEach((message, index) => {
+        content += `[${index + 1}] ${message.sender.toUpperCase()}\n`;
+        content += `Time: ${message.timestamp || 'Unknown'}\n`;
+        if (message.confidence) {
+          content += `Confidence: ${message.confidence}% (${message.confidenceLevel})\n`;
+        }
+        content += `Message:\n${message.text}\n`;
+        if (message.sources && message.sources.length > 0) {
+          content += `Sources: ${message.sources.join(', ')}\n`;
+        }
+        content += `${'-'.repeat(40)}\n\n`;
+      });
+    } else if (format === 'json') {
+      content = JSON.stringify({
+        exportDate: new Date().toISOString(),
+        totalMessages: chatData.length,
+        messages: chatData
+      }, null, 2);
+    }
+    
+    // Save to user data directory
+    const exportPath = path.join(userDataPath, 'exports');
+    if (!fs.existsSync(exportPath)) {
+      fs.mkdirSync(exportPath, { recursive: true });
+    }
+    
+    const filePath = path.join(exportPath, filename);
+    fs.writeFileSync(filePath, content, 'utf8');
+    
+    console.log('📤 Chat exported successfully:', filename);
+    
+    return {
+      success: true,
+      message: `Chat exported successfully as ${filename}`,
+      filePath: filePath
+    };
+    
+  } catch (error) {
+    console.error('❌ Error exporting chat:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// IPC Handler: Copy to clipboard
+ipcMain.handle('copy-to-clipboard', async (event, text) => {
+  try {
+    clipboard.writeText(text);
+    console.log('📋 Text copied to clipboard');
+    
+    return {
+      success: true,
+      message: 'Copied to clipboard!'
+    };
+    
+  } catch (error) {
+    console.error('❌ Error copying to clipboard:', error.message);
     return {
       success: false,
       error: error.message

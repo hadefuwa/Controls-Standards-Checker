@@ -20,6 +20,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Remove a document
   removeDocument: (filename) => ipcRenderer.invoke('remove-document', filename),
   
+  // Delete a document (new)
+  deleteDocument: (filename) => ipcRenderer.invoke('delete-document', filename),
+  
   // Reindex documents
   reindexDocuments: () => ipcRenderer.invoke('reindex-documents'),
   
@@ -29,6 +32,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Get document source status
   getDocumentSource: () => ipcRenderer.invoke('get-document-source'),
   
-  // Refresh documents from GitHub
-  refreshGitHubDocuments: () => ipcRenderer.invoke('refresh-github-documents')
+  // Bookmark functions
+  saveBookmark: (bookmarkData) => ipcRenderer.invoke('save-bookmark', bookmarkData),
+  getBookmarks: () => ipcRenderer.invoke('get-bookmarks'),
+  loadBookmark: (bookmarkId) => ipcRenderer.invoke('load-bookmark', bookmarkId),
+  deleteBookmark: (bookmarkId) => ipcRenderer.invoke('delete-bookmark', bookmarkId),
+  
+  // Export chat
+  exportChat: (chatData, format) => ipcRenderer.invoke('export-chat', chatData, format),
+  
+  // Copy to clipboard (using the main process)
+  copyToClipboard: (text) => ipcRenderer.invoke('copy-to-clipboard', text)
 }); 

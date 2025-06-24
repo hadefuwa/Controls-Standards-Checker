@@ -87,7 +87,7 @@ class SystemMonitor {
         // Check if LM Studio GPU was used (even if system monitoring doesn't detect it)
         let lmStudioGPUActive = false;
         try {
-            const lmStudioClient = require('../llm/lm_studio_client_cpu_fallback.js');
+            const lmStudioClient = require('../llm/lm_studio_client.js');
             lmStudioGPUActive = lmStudioClient.isGPUActive();
         } catch (error) {
             // Client might not be available, that's okay

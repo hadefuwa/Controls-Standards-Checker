@@ -31,6 +31,21 @@ const quickToggle = document.getElementById('quickToggle');
 const quickQuestions = document.getElementById('quickQuestions');
 const quickContent = document.getElementById('quickContent');
 
+// New feature elements
+const searchChatBtn = document.getElementById('searchChatBtn');
+const exportChatBtn = document.getElementById('exportChatBtn');
+const bookmarksBtn = document.getElementById('bookmarksBtn');
+const searchContainer = document.getElementById('searchContainer');
+const searchInput = document.getElementById('searchInput');
+const searchClose = document.getElementById('searchClose');
+const bookmarksModal = document.getElementById('bookmarksModal');
+const bookmarksModalClose = document.getElementById('bookmarksModalClose');
+const exportModal = document.getElementById('exportModal');
+const exportModalClose = document.getElementById('exportModalClose');
+const exportCancelBtn = document.getElementById('exportCancelBtn');
+const exportConfirmBtn = document.getElementById('exportConfirmBtn');
+const bookmarksList = document.getElementById('bookmarksList');
+
 // System state management
 let isProcessing = false;
 let currentRequest = null; // Track current request to allow cancellation
@@ -206,6 +221,35 @@ function setupEventListeners() {
     
     // Quick questions toggle
     quickToggle.addEventListener('click', toggleQuickQuestions);
+    
+    // New feature event listeners
+    if (searchChatBtn) searchChatBtn.addEventListener('click', toggleSearch);
+    if (exportChatBtn) exportChatBtn.addEventListener('click', showExportModal);
+    if (bookmarksBtn) bookmarksBtn.addEventListener('click', showBookmarksModal);
+    if (searchClose) searchClose.addEventListener('click', closeSearch);
+    
+    // Header bookmarks button (always accessible)
+    const headerBookmarksBtn = document.getElementById('headerBookmarksBtn');
+    if (headerBookmarksBtn) headerBookmarksBtn.addEventListener('click', showBookmarksModal);
+    if (searchInput) searchInput.addEventListener('input', performSearch);
+    
+    // Modal event listeners
+    if (bookmarksModalClose) bookmarksModalClose.addEventListener('click', closeBookmarksModal);
+    if (exportModalClose) exportModalClose.addEventListener('click', closeExportModal);
+    if (exportCancelBtn) exportCancelBtn.addEventListener('click', closeExportModal);
+    if (exportConfirmBtn) exportConfirmBtn.addEventListener('click', handleExportChat);
+    
+    // Close modals when clicking outside
+    if (bookmarksModal) {
+        bookmarksModal.addEventListener('click', (e) => {
+            if (e.target === bookmarksModal) closeBookmarksModal();
+        });
+    }
+    if (exportModal) {
+        exportModal.addEventListener('click', (e) => {
+            if (e.target === exportModal) closeExportModal();
+        });
+    }
 }
 
 /**
@@ -445,6 +489,32 @@ function addMessage(text, sender, sources = null, metadata = null, elapsedTime =
         contentDiv.appendChild(sourcesDiv);
     }
     
+    // Add action buttons for assistant messages
+    if (sender === 'assistant') {
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'message-actions';
+        
+        // Copy button
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'action-btn-small';
+        copyBtn.innerHTML = '<div class="btn-icon copy"></div><span>Copy</span>';
+        copyBtn.onclick = () => copyMessage(text);
+        actionsDiv.appendChild(copyBtn);
+        
+        // Bookmark button
+        const bookmarkBtn = document.createElement('button');
+        bookmarkBtn.className = 'action-btn-small';
+        bookmarkBtn.innerHTML = '<div class="btn-icon bookmark"></div><span>Bookmark</span>';
+        // Use a function that gets the current text content to ensure we capture the final text
+        bookmarkBtn.onclick = () => {
+            const currentText = messageDiv.querySelector('.message-text').textContent || text;
+            bookmarkMessage(currentText, sources, confidence, confidenceLevel, metadata, elapsedTime, systemStats);
+        };
+        actionsDiv.appendChild(bookmarkBtn);
+        
+        contentDiv.appendChild(actionsDiv);
+    }
+    
     // Assemble message
     messageDiv.appendChild(avatar);
     messageDiv.appendChild(contentDiv);
@@ -468,26 +538,43 @@ async function addMessageWithTyping(text, sender, sources = null, metadata = nul
     const messageDiv = addMessage('', sender, null, null, null, null, confidence, confidenceLevel);
     const textDiv = messageDiv.querySelector('.message-text');
     
-    // Professional typing simulation
-    const words = text.split(' ');
-    let currentText = '';
+    // Check if this is a JSON response - if so, skip typing animation to avoid JSON parsing errors
+    const isJsonResponse = text.trim().startsWith('{') && text.trim().endsWith('}') && text.length > 100;
     
-    for (let i = 0; i < words.length; i++) {
-        currentText += (i > 0 ? ' ' : '') + words[i];
-        textDiv.innerHTML = formatMessageText(currentText);
+    if (isJsonResponse) {
+        // For JSON responses, show immediately without typing animation to avoid parsing errors
+        console.log('📝 JSON response detected - showing immediately without typing animation');
+        textDiv.innerHTML = formatMessageText(text);
+    } else {
+        // Professional typing simulation for non-JSON responses
+        const words = text.split(' ');
+        let currentText = '';
         
-        // Typing delay for natural effect
-        if (i < words.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 15));
+        for (let i = 0; i < words.length; i++) {
+            currentText += (i > 0 ? ' ' : '') + words[i];
+            textDiv.innerHTML = formatMessageText(currentText);
+            
+            // Typing delay for natural effect
+            if (i < words.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 15));
+            }
         }
     }
     
-            // Add technical sources after typing complete
-        if (sources && sources.length > 0) {
-            const contentDiv = messageDiv.querySelector('.message-content');
-            const sourcesDiv = createTechnicalSources(sources, metadata, elapsedTime, systemStats, confidence);
-            contentDiv.appendChild(sourcesDiv);
+    // Add technical sources after typing complete
+    if (sources && sources.length > 0) {
+        const contentDiv = messageDiv.querySelector('.message-content');
+        const sourcesDiv = createTechnicalSources(sources, metadata, elapsedTime, systemStats, confidence);
+        contentDiv.appendChild(sourcesDiv);
+    }
+    
+    // Update bookmark button with the final text after typing is complete
+    if (sender === 'assistant') {
+        const bookmarkBtn = messageDiv.querySelector('.action-btn-small:nth-child(2)'); // Second button is bookmark
+        if (bookmarkBtn) {
+            bookmarkBtn.onclick = () => bookmarkMessage(text, sources, confidence, confidenceLevel, metadata, elapsedTime, systemStats);
         }
+    }
 }
 
 /**
@@ -574,9 +661,32 @@ function formatMessageText(text) {
  * Check if response contains thinking content
  */
 function hasThinkingContent(text) {
+    // Don't process as thinking content if the text is too short (likely partial)
+    if (text.length < 200) {
+        return false;
+    }
+    
+    // Don't process incomplete JSON as thinking content
+    if (text.trim().startsWith('{') && !text.trim().endsWith('}')) {
+        return false;
+    }
+    
     // Check for our structured format first (highest priority)
     if (/<THINKING>[\s\S]*?<\/THINKING>[\s\S]*?<ANSWER>[\s\S]*?<\/ANSWER>/i.test(text)) {
         return true;
+    }
+    
+    // Check for JSON format with thinking and answer fields
+    if (text.trim().startsWith('{') && text.trim().endsWith('}')) {
+        try {
+            const parsed = JSON.parse(text);
+            if (parsed.thinking && parsed.answer) {
+                return true;
+            }
+        } catch (e) {
+            // If JSON parsing fails, don't treat as thinking content
+            return false;
+        }
     }
     
     // Check for common thinking model patterns as fallback
@@ -589,19 +699,19 @@ function hasThinkingContent(text) {
         /\*\*Thinking:\*\*[\s\S]*?(?=\*\*Answer:\*\*|\*\*Response:\*\*|$)/i,
         /\*\*Reasoning:\*\*[\s\S]*?(?=\*\*Answer:\*\*|\*\*Response:\*\*|$)/i,
         
-        // DeepSeek R1 patterns - responses that start with analysis
-        /^(Okay, let's|Let me|First, I|Looking at|The user|I need to|This question|Based on)[\s\S]*?(?=\n\n[A-Z]|\n\n\d+\.)/i,
+        // DeepSeek R1 patterns - responses that start with analysis (only for complete responses)
+        text.length > 1000 && /^(Okay, let's|Let me|First, I|Looking at|The user|I need to|This question|Based on)[\s\S]*?(?=\n\n[A-Z]|\n\n\d+\.)/i.test(text),
         
-        // Responses that contain reasoning followed by conclusion
-        /[\s\S]*?(Based on the provided|Conclusion|Therefore|In summary)[\s\S]*?(?=\n\n|\n[A-Z])/i,
+        // Responses that contain reasoning followed by conclusion (only for longer responses)
+        text.length > 800 && /(Based on the provided|Conclusion|Therefore|In summary)[\s\S]*?(?=\n\n|\n[A-Z])/i.test(text),
         
-        // Long responses with internal reasoning (over 1000 chars with analysis keywords)
-        text.length > 1000 && /(First, I|Looking at|The key point|I should|The user might|Let me|I need to check)/i.test(text)
+        // Long responses with internal reasoning (over 1500 chars with analysis keywords)
+        text.length > 1500 && /(First, I|Looking at|The key point|I should|The user might|Let me|I need to check)/i.test(text)
     ];
     
     return thinkingPatterns.some(pattern => {
         if (typeof pattern === 'boolean') return pattern;
-        return pattern.test(text);
+        return pattern.test && pattern.test(text);
     });
 }
 
@@ -617,24 +727,33 @@ function formatThinkingModelResponse(text) {
     let answer = '';
     
     // First, try to parse as JSON (structured output)
-    try {
-        const jsonResponse = JSON.parse(text);
-        console.log('✅ Successfully parsed JSON response');
-        
-        if (jsonResponse.thinking && jsonResponse.answer) {
-            console.log('✅ Found structured thinking and answer in JSON');
-            console.log('Thinking length:', jsonResponse.thinking.length);
-            console.log('Answer length:', jsonResponse.answer.length);
+    // Only try JSON parsing if the text looks like complete JSON
+    if (text.trim().startsWith('{') && text.trim().endsWith('}') && text.length > 100) {
+        try {
+            const jsonResponse = JSON.parse(text);
+            console.log('✅ Successfully parsed JSON response');
             
-            thinking = jsonResponse.thinking.trim();
-            answer = jsonResponse.answer.trim();
-        } else {
-            console.log('⚠️ JSON response missing thinking or answer fields');
-            answer = JSON.stringify(jsonResponse, null, 2);
+            if (jsonResponse.thinking && jsonResponse.answer) {
+                console.log('✅ Found structured thinking and answer in JSON');
+                console.log('Thinking length:', jsonResponse.thinking.length);
+                console.log('Answer length:', jsonResponse.answer.length);
+                
+                thinking = jsonResponse.thinking.trim();
+                answer = jsonResponse.answer.trim();
+            } else {
+                console.log('⚠️ JSON response missing thinking or answer fields');
+                // If JSON is valid but missing expected fields, treat as plain text
+                answer = text;
+                thinking = '';
+            }
+        } catch (e) {
+            console.log('❌ JSON parsing failed (likely incomplete stream), treating as plain text');
+            // Don't spam the console with parsing errors during streaming
+            answer = text;
             thinking = '';
         }
-    } catch (e) {
-        console.log('❌ Not valid JSON, trying natural language detection...');
+    } else {
+        console.log('📝 Processing as plain text response');
         
         // Fallback to natural language detection
         const answerIndicators = [
@@ -671,7 +790,7 @@ function formatThinkingModelResponse(text) {
             } else {
                 answer = text;
                 thinking = '';
-                console.log('❌ No clear separation found');
+                console.log('📝 Using full text as answer (no separation needed)');
             }
         }
     }
@@ -1188,7 +1307,10 @@ function displayDocumentsList(documents) {
         <div class="doc-item" data-filename="${doc.name}">
             <div class="doc-item-header">
                 <div class="doc-name">${doc.name}</div>
-                <button class="doc-remove" onclick="removeDocument('${doc.name}')" title="Remove document">×</button>
+                <div class="doc-actions">
+                    <button class="doc-delete" onclick="deleteDocument('${doc.name}')" title="Delete document permanently">Delete</button>
+                    <button class="doc-remove" onclick="removeDocument('${doc.name}')" title="Remove from index">×</button>
+                </div>
             </div>
             <div class="doc-meta">
                 <span class="doc-size">${formatFileSize(doc.size)}</span>
@@ -1439,3 +1561,376 @@ function setupResponsiveBehavior() {
         quickQuestions.classList.add('collapsed');
     }
 }
+
+// ========== NEW FEATURE FUNCTIONS ==========
+
+/**
+ * Delete a document permanently
+ */
+async function deleteDocument(filename) {
+    if (!confirm(`Are you sure you want to permanently delete "${filename}"? This action cannot be undone.`)) {
+        return;
+    }
+    
+    logSystemEvent(`Deleting document: ${filename}`);
+    
+    try {
+        const result = await window.electronAPI.deleteDocument(filename);
+        
+        if (result.success) {
+            await loadDocumentsList();
+            showToast(`Document "${filename}" deleted successfully.`, 'success');
+            logSystemEvent(`Successfully deleted: ${filename}`);
+        } else {
+            throw new Error(result.error || 'Failed to delete document');
+        }
+    } catch (error) {
+        console.error('Error deleting document:', error);
+        showToast('Error deleting document: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Copy message to clipboard
+ */
+async function copyMessage(text) {
+    try {
+        const result = await window.electronAPI.copyToClipboard(text);
+        if (result.success) {
+            showToast('Copied to clipboard!', 'success');
+        } else {
+            throw new Error(result.error);
+        }
+    } catch (error) {
+        console.error('Error copying to clipboard:', error);
+        showToast('Failed to copy to clipboard', 'error');
+    }
+}
+
+/**
+ * Bookmark a message
+ */
+async function bookmarkMessage(text, sources, confidence, confidenceLevel, metadata = null, elapsedTime = null, systemStats = null) {
+    // Get the current question from message history
+    const lastUserMessage = messageHistory.filter(m => m.type === 'user').pop();
+    const question = lastUserMessage ? lastUserMessage.content : 'Unknown question';
+    
+    const bookmarkData = {
+        question: question,
+        answer: text,
+        confidence: confidence,
+        confidenceLevel: confidenceLevel,
+        sources: sources || [],
+        metadata: metadata || {},
+        elapsedTime: elapsedTime || 0,
+        systemStats: systemStats || {}
+    };
+    
+    try {
+        const result = await window.electronAPI.saveBookmark(bookmarkData);
+        if (result.success) {
+            showToast('Answer bookmarked!', 'success');
+        } else {
+            throw new Error(result.error);
+        }
+    } catch (error) {
+        console.error('Error saving bookmark:', error);
+        showToast('Failed to save bookmark', 'error');
+    }
+}
+
+/**
+ * Toggle search functionality
+ */
+function toggleSearch() {
+    const isHidden = searchContainer.classList.contains('hidden');
+    
+    if (isHidden) {
+        searchContainer.classList.remove('hidden');
+        searchInput.focus();
+    } else {
+        closeSearch();
+    }
+}
+
+/**
+ * Close search
+ */
+function closeSearch() {
+    searchContainer.classList.add('hidden');
+    searchInput.value = '';
+    clearSearchHighlights();
+}
+
+/**
+ * Perform search in chat messages
+ */
+function performSearch() {
+    const searchTerm = searchInput.value.trim().toLowerCase();
+    clearSearchHighlights();
+    
+    if (!searchTerm) return;
+    
+    const messages = chatMessages.querySelectorAll('.message-text');
+    let foundCount = 0;
+    
+    messages.forEach(messageElement => {
+        const text = messageElement.textContent.toLowerCase();
+        if (text.includes(searchTerm)) {
+            highlightSearchTerm(messageElement, searchTerm);
+            foundCount++;
+        }
+    });
+    
+    if (foundCount === 0) {
+        showToast('No matches found', 'error');
+    }
+}
+
+/**
+ * Highlight search terms in text
+ */
+function highlightSearchTerm(element, searchTerm) {
+    const originalHTML = element.innerHTML;
+    const regex = new RegExp(`(${escapeRegex(searchTerm)})`, 'gi');
+    const highlightedHTML = originalHTML.replace(regex, '<span class="search-highlight">$1</span>');
+    element.innerHTML = highlightedHTML;
+}
+
+/**
+ * Clear search highlights
+ */
+function clearSearchHighlights() {
+    const highlights = chatMessages.querySelectorAll('.search-highlight');
+    highlights.forEach(highlight => {
+        const parent = highlight.parentNode;
+        parent.replaceChild(document.createTextNode(highlight.textContent), highlight);
+        parent.normalize();
+    });
+}
+
+/**
+ * Escape regex special characters
+ */
+function escapeRegex(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Show export modal
+ */
+function showExportModal() {
+    exportModal.classList.remove('hidden');
+}
+
+/**
+ * Close export modal
+ */
+function closeExportModal() {
+    exportModal.classList.add('hidden');
+}
+
+/**
+ * Handle chat export
+ */
+async function handleExportChat() {
+    const formatRadios = document.querySelectorAll('input[name="exportFormat"]');
+    let selectedFormat = 'txt';
+    
+    formatRadios.forEach(radio => {
+        if (radio.checked) selectedFormat = radio.value;
+    });
+    
+    // Collect chat data
+    const chatData = [];
+    const messages = chatMessages.querySelectorAll('.message');
+    
+    messages.forEach((message, index) => {
+        const isUser = message.classList.contains('user-message');
+        const textElement = message.querySelector('.message-text');
+        const text = textElement ? textElement.textContent : '';
+        
+        if (text.trim()) {
+            const messageData = {
+                sender: isUser ? 'user' : 'assistant',
+                text: text,
+                timestamp: new Date().toISOString(),
+                index: index
+            };
+            
+            // Add confidence and sources for assistant messages
+            if (!isUser) {
+                const sourcesElement = message.querySelector('.sources');
+                if (sourcesElement) {
+                    const sourceItems = sourcesElement.querySelectorAll('.source-item');
+                    messageData.sources = Array.from(sourceItems).map(item => item.textContent);
+                }
+                
+                // Extract confidence from class names
+                const confidenceClasses = ['confidence-high', 'confidence-medium', 'confidence-medium-low', 'confidence-low'];
+                for (const className of confidenceClasses) {
+                    if (message.classList.contains(className)) {
+                        messageData.confidenceLevel = className.replace('confidence-', '');
+                        break;
+                    }
+                }
+            }
+            
+            chatData.push(messageData);
+        }
+    });
+    
+    try {
+        const result = await window.electronAPI.exportChat(chatData, selectedFormat);
+        if (result.success) {
+            showToast(`Chat exported successfully!`, 'success');
+            closeExportModal();
+        } else {
+            throw new Error(result.error);
+        }
+    } catch (error) {
+        console.error('Error exporting chat:', error);
+        showToast('Failed to export chat', 'error');
+    }
+}
+
+/**
+ * Show bookmarks modal
+ */
+async function showBookmarksModal() {
+    bookmarksModal.classList.remove('hidden');
+    await loadBookmarks();
+}
+
+/**
+ * Close bookmarks modal
+ */
+function closeBookmarksModal() {
+    bookmarksModal.classList.add('hidden');
+}
+
+/**
+ * Load and display bookmarks
+ */
+async function loadBookmarks() {
+    try {
+        bookmarksList.innerHTML = '<div class="loading-indicator">Loading bookmarks...</div>';
+        
+        const result = await window.electronAPI.getBookmarks();
+        if (result.success) {
+            displayBookmarks(result.bookmarks);
+        } else {
+            throw new Error(result.error);
+        }
+    } catch (error) {
+        console.error('Error loading bookmarks:', error);
+        bookmarksList.innerHTML = '<div class="error-indicator">Error loading bookmarks</div>';
+    }
+}
+
+/**
+ * Display bookmarks in the modal
+ */
+function displayBookmarks(bookmarks) {
+    if (bookmarks.length === 0) {
+        bookmarksList.innerHTML = '<div class="loading-indicator">No bookmarks saved yet</div>';
+        return;
+    }
+    
+    const bookmarksHTML = bookmarks.map(bookmark => {
+        const date = new Date(bookmark.timestamp).toLocaleDateString();
+        const truncatedAnswer = bookmark.answer.length > 200 ? 
+            bookmark.answer.substring(0, 200) + '...' : bookmark.answer;
+        
+        return `
+            <div class="bookmark-item" onclick="navigateToBookmark('${bookmark.id}', '${bookmark.question.replace(/'/g, "\\'")}')">
+                <div class="bookmark-header">
+                    <div class="bookmark-date">${date}</div>
+                    <button class="bookmark-delete" onclick="event.stopPropagation(); deleteBookmark('${bookmark.id}')" title="Delete bookmark">×</button>
+                </div>
+                <div class="bookmark-question">${bookmark.question}</div>
+                <div class="bookmark-answer">${truncatedAnswer}</div>
+            </div>
+        `;
+    }).join('');
+    
+    bookmarksList.innerHTML = bookmarksHTML;
+}
+
+/**
+ * Navigate to a bookmarked answer by loading the saved data
+ */
+async function navigateToBookmark(bookmarkId, question) {
+    try {
+        // Close the bookmarks modal
+        closeBookmarksModal();
+        
+        // Load the bookmark data
+        const result = await window.electronAPI.loadBookmark(bookmarkId);
+        
+        if (!result.success) {
+            throw new Error(result.error);
+        }
+        
+        const bookmark = result.bookmark;
+        
+        // Add the user question to chat
+        addMessage(bookmark.question, 'user');
+        
+        // Add the saved answer to chat with all metadata
+        addMessage(
+            bookmark.answer, 
+            'assistant', 
+            bookmark.sources, 
+            bookmark.metadata, 
+            bookmark.elapsedTime, 
+            bookmark.systemStats, 
+            bookmark.confidence, 
+            bookmark.confidenceLevel
+        );
+        
+        showToast('Loaded bookmarked conversation', 'success');
+        
+    } catch (error) {
+        console.error('Error loading bookmark:', error);
+        showToast('Failed to load bookmark', 'error');
+    }
+}
+
+/**
+ * Delete a bookmark
+ */
+async function deleteBookmark(bookmarkId) {
+    try {
+        const result = await window.electronAPI.deleteBookmark(bookmarkId);
+        if (result.success) {
+            showToast('Bookmark deleted', 'success');
+            await loadBookmarks(); // Refresh the list
+        } else {
+            throw new Error(result.error);
+        }
+    } catch (error) {
+        console.error('Error deleting bookmark:', error);
+        showToast('Failed to delete bookmark', 'error');
+    }
+}
+
+/**
+ * Show toast notification
+ */
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// Make functions globally accessible for onclick handlers
+window.deleteDocument = deleteDocument;
+window.deleteBookmark = deleteBookmark;
+window.navigateToBookmark = navigateToBookmark;
