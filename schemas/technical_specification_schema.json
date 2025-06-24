@@ -1,0 +1,112 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Technical Specification Response Schema",
+  "description": "Structured format for technical specification and component responses",
+  "type": "object",
+  "properties": {
+    "thinking": {
+      "type": "string",
+      "description": "Step-by-step reasoning process for technical analysis"
+    },
+    "technical_analysis": {
+      "type": "object",
+      "properties": {
+        "component_type": {
+          "type": "string",
+          "description": "Type of component or system being analyzed"
+        },
+        "specifications": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "parameter": {
+                "type": "string",
+                "description": "Technical parameter name"
+              },
+              "value": {
+                "type": "string",
+                "description": "Recommended or required value"
+              },
+              "unit": {
+                "type": "string",
+                "description": "Unit of measurement"
+              },
+              "justification": {
+                "type": "string",
+                "description": "Why this specification is recommended"
+              },
+              "standard_reference": {
+                "type": "string",
+                "description": "Standard that defines this requirement"
+              }
+            },
+            "required": ["parameter", "value", "justification"]
+          }
+        },
+        "design_considerations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "consideration": {
+                "type": "string",
+                "description": "Design consideration or constraint"
+              },
+              "impact": {
+                "type": "string",
+                "enum": ["critical", "important", "moderate", "minor"]
+              },
+              "mitigation": {
+                "type": "string",
+                "description": "How to address this consideration"
+              }
+            },
+            "required": ["consideration", "impact", "mitigation"]
+          }
+        }
+      },
+      "required": ["component_type", "specifications", "design_considerations"]
+    },
+    "answer": {
+      "type": "string",
+      "description": "Clear, technical answer to the user's question"
+    },
+    "implementation_steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "integer",
+            "description": "Step number"
+          },
+          "action": {
+            "type": "string",
+            "description": "Action to take"
+          },
+          "details": {
+            "type": "string",
+            "description": "Detailed instructions for this step"
+          },
+          "tools_required": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tools or equipment needed for this step"
+          }
+        },
+        "required": ["step", "action", "details"]
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Important safety warnings or cautions"
+    }
+  },
+  "required": ["thinking", "technical_analysis", "answer", "implementation_steps"]
+} 

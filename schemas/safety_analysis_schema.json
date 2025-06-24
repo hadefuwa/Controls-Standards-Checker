@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Safety Analysis Response Schema",
+  "description": "Structured format for industrial safety analysis responses",
+  "type": "object",
+  "properties": {
+    "thinking": {
+      "type": "string",
+      "description": "Step-by-step reasoning process for the safety analysis"
+    },
+    "safety_assessment": {
+      "type": "object",
+      "properties": {
+        "compliance_status": {
+          "type": "string",
+          "enum": ["compliant", "non-compliant", "requires_review", "insufficient_information"]
+        },
+        "risk_level": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "applicable_standards": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "standard": {
+                "type": "string",
+                "description": "Standard name (e.g., EN 60204-1, Machinery Directive)"
+              },
+              "section": {
+                "type": "string",
+                "description": "Specific section or clause"
+              },
+              "requirement": {
+                "type": "string",
+                "description": "The specific requirement"
+              }
+            },
+            "required": ["standard", "requirement"]
+          }
+        }
+      },
+      "required": ["compliance_status", "risk_level", "applicable_standards"]
+    },
+    "answer": {
+      "type": "string",
+      "description": "Clear, concise answer to the user's question"
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Recommended action to take"
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["immediate", "high", "medium", "low"]
+          },
+          "rationale": {
+            "type": "string",
+            "description": "Why this action is recommended"
+          }
+        },
+        "required": ["action", "priority", "rationale"]
+      }
+    },
+    "additional_considerations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Additional factors to consider"
+    }
+  },
+  "required": ["thinking", "safety_assessment", "answer", "recommendations"]
+} 

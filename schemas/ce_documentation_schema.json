@@ -1,0 +1,114 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CE Documentation Response Schema",
+  "description": "Structured format for CE marking and documentation responses",
+  "type": "object",
+  "properties": {
+    "thinking": {
+      "type": "string",
+      "description": "Step-by-step reasoning process for CE documentation"
+    },
+    "ce_assessment": {
+      "type": "object",
+      "properties": {
+        "applicable_directives": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "directive": {
+                "type": "string",
+                "description": "EU Directive name (e.g., Machinery Directive 2006/42/EC)"
+              },
+              "applicability": {
+                "type": "string",
+                "enum": ["applies", "does_not_apply", "partially_applies", "unclear"]
+              },
+              "justification": {
+                "type": "string",
+                "description": "Why this directive applies or doesn't apply"
+              }
+            },
+            "required": ["directive", "applicability", "justification"]
+          }
+        },
+        "harmonized_standards": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "standard": {
+                "type": "string",
+                "description": "Harmonized standard reference (e.g., EN ISO 13849-1)"
+              },
+              "relevance": {
+                "type": "string",
+                "enum": ["mandatory", "recommended", "optional", "not_applicable"]
+              },
+              "purpose": {
+                "type": "string",
+                "description": "What aspect this standard addresses"
+              }
+            },
+            "required": ["standard", "relevance", "purpose"]
+          }
+        },
+        "essential_requirements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "requirement": {
+                "type": "string",
+                "description": "Essential health and safety requirement"
+              },
+              "compliance_method": {
+                "type": "string",
+                "description": "How to demonstrate compliance"
+              },
+              "documentation_needed": {
+                "type": "string",
+                "description": "What documentation is required"
+              }
+            },
+            "required": ["requirement", "compliance_method", "documentation_needed"]
+          }
+        }
+      },
+      "required": ["applicable_directives", "harmonized_standards", "essential_requirements"]
+    },
+    "answer": {
+      "type": "string",
+      "description": "Clear, practical answer to the CE documentation question"
+    },
+    "document_checklist": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "type": "string",
+            "description": "Required document name"
+          },
+          "mandatory": {
+            "type": "boolean",
+            "description": "Whether this document is mandatory for CE marking"
+          },
+          "description": {
+            "type": "string",
+            "description": "What this document should contain"
+          }
+        },
+        "required": ["document", "mandatory", "description"]
+      }
+    },
+    "next_steps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Recommended next steps for CE compliance"
+    }
+  },
+  "required": ["thinking", "ce_assessment", "answer", "document_checklist", "next_steps"]
+} 
